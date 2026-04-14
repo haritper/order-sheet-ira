@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}Order {{ order.order_id }}{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>{{ order.order_id }}</h1>
+  <div>
+    <a class="btn" href="{{ url_for('orders.edit_order', order_id=order.id, step=1) }}">Edit</a>
+    <a class="btn btn-outline" href="{{ url_for('orders.verify_order', order_id=order.id) }}">Checklist</a>
+    <a class="btn btn-outline" href="{{ url_for('orders.cutting_plan', order_id=order.id) }}">Cutting Plan</a>
+    {% if current_user.role == 'admin' and order.status == 'READY_FOR_APPROVAL' %}
+      <form method="post" action="{{ url_for('orders.approve_order', order_id=order.id) }}" style="display:inline;">
+        <button class="btn" type="submit">Approve</button>
+      </form>
+    {% endif %}
+    <a class="btn" href="{{ url_for('exports.export_pdf', order_id=order.id) }}">Export PDF</a>
+  </div>
+</div>
+<div class="card subtle">
+  <p><strong>Status:</strong> {{ order.status }}</p>
+  <p><strong>Customer:</strong> {{ order.customer_name }} | {{ order.mobile }}</p>
+  <p><strong>Created By:</strong> {{ created_by_email }}</p>
+  <p><strong>Address:</strong> {{ order.shipping_address }}, {{ order.city }}, {{ order.state }} {{ order.zip_code }}, {{ order.country }}</p>
+  <p><strong>Checklist:</strong>
+    {% if checklist_complete %}
+      <span class="status-pill status-approved">Complete</span>
+    {% else %}
+      <span class="status-pill status-warning">Pending ({{ checklist_missing|length }} checks)</span>
+    {% endif %}
+  </p>
+</div>
+
+<h2>Order Overview</h2>
+{% set sections = [('mens', "MEN'S UNIFORMS"), ('womens', "WOMEN'S UNIFORMS"), ('youth', "KID'S / YOUTH UNIFORMS")] %}
+{% for key, title in sections %}
+  {% set block = order_overview[key] %}
+  {% set grouped_tables = block.get('grouped_tables', []) %}
+  {% set ns = namespace(total=0) %}
+  {% for grp in grouped_tables %}
+    {% for row in grp.get('rows', []) %}
+      {% set ns.total = ns.total + (row.get('sizes', {}).get('TOTAL', 0) or 0) %}
+    {% endfor %}
+  {% endfor %}
+  {% if ns.total > 0 or grouped_tables %}
+    <h3>{{ title }}</h3>
+    {% for grp in grouped_tables %}
+      {% set grp_title = grp.get('title', '') %}
+      {% if grp_title %}
+        <h4 style="margin:8px 0 4px;">{{ grp_title }}</h4>
+      {% endif %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              {% if grp.get('rows') and grp.get('rows')[0].get('sizes') %}
+                {% for size in grp.get('rows')[0].get('sizes', {}).keys() %}<th>{{ size }}</th>{% endfor %}
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in grp.get('rows', []) %}
+            <tr>
+              <td>{{ row.get('label', 'Product') }}</td>
+              {% for qty in row.get('sizes', {}).values() %}<td>{{ qty }}</td>{% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+
+{% set acc = order_overview['accessories'] %}
+{% set acc_total = (acc['CAP'] or 0) + (acc['BAGGY_CAP'] or 0) + (acc['HAT'] or 0) + (acc['PAD_CLAD'] or 0) + (acc['HELMET_CLAD'] or 0) %}
+{% if acc_total > 0 %}
+<h3>ACCESSORIES</h3>
+<div class="table-wrap">
+  <table>
+    <tbody>
+      <tr>
+        <th>Product</th>
+        <th>Quantity</th>
+        <th>Product</th>
+        <th>Quantity</th>
+      </tr>
+      <tr>
+        <td>Cap</td>
+        <td>{{ acc['CAP'] }}</td>
+        <td>Helmet Clad</td>
+        <td>{{ acc['HELMET_CLAD'] }}</td>
+      </tr>
+      <tr>
+        <td>Baggy Cap</td>
+        <td>{{ acc['BAGGY_CAP'] }}</td>
+        <td>Pad Clad</td>
+        <td>{{ acc['PAD_CLAD'] }}</td>
+      </tr>
+      <tr>
+        <td>Hat</td>
+        <td>{{ acc['HAT'] }}</td>
+        <td></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<h2>Packing List (Split By Sleeve)</h2>
+{% set player_sections = [
+  ('mens_half', "MENS - HALF"),
+  ('mens_full', "MENS - FULL"),
+  ('womens_half', "WOMENS - HALF"),
+  ('womens_full', "WOMENS - FULL"),
+  ('youth_half', "YOUTH - HALF"),
+  ('youth_full', "YOUTH - FULL")
+] %}
+{% for key, title in player_sections %}
+  {% if packing_groups[key] %}
+  <h3>{{ title }}</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>S.No</th><th>Name</th><th>No.</th><th>Sleeve</th><th>Tshirt</th><th>Trouser</th></tr></thead>
+      <tbody>
+        {% for p in packing_groups[key] %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ p.player_name }}</td>
+            <td>{{ p.number }}</td>
+            <td>{{ p.sleeve_type }}</td>
+            <td>{{ p.tshirt_size }} x {{ p.tshirt_qty }}</td>
+            <td>{{ p.trouser_size }} x {{ p.trouser_qty }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+{% endfor %}
+
+<h2>Generated Exports</h2>
+<ul>
+{% for att in order.attachments if att.mime_type == 'application/pdf' %}
+  <li><a href="{{ url_for('exports.get_export', order_id=order.id, attachment_id=att.id) }}">{{ att.filename }}</a></li>
+{% else %}
+  <li>No exports yet.</li>
+{% endfor %}
+</ul>
+{% endblock %}

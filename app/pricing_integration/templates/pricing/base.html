@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Pricing Intelligence{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('pricing.static', filename='pricing/style.css') }}">
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">
+            <img
+              class="brand-logo"
+              src="{{ url_for('pricing.static', filename='pricing/new-logo.avif') }}"
+              alt="Pricing Intelligence logo"
+            >
+          </div>
+          <div class="brand-copy">
+            <p class="eyebrow">Pricing</p>
+            <h1>Intelligence</h1>
+          </div>
+        </div>
+        {% if pricing_current_user %}
+        <nav class="nav">
+          <a class="{% if current_endpoint == 'pricing.dashboard' %}active{% endif %}" href="{{ url_for('pricing.dashboard') }}">Dashboard</a>
+          <a class="{% if current_endpoint == 'pricing.orders' %}active{% endif %}" href="{{ url_for('pricing.orders') }}">Orders</a>
+          <a class="{% if current_endpoint == 'pricing.upload_order' %}active{% endif %}" href="{{ url_for('pricing.upload_order') }}">Upload Order</a>
+          <a class="{% if current_endpoint == 'pricing.pricing_rules' %}active{% endif %}" href="{{ url_for('pricing.pricing_rules') }}">Pricing Rules</a>
+          {% if pricing_current_user['role'] == 'owner' %}
+          <a class="{% if current_endpoint == 'pricing.shipping' %}active{% endif %}" href="{{ url_for('pricing.shipping') }}">Shipping & Duties</a>
+          {% endif %}
+        </nav>
+        <div class="session-box">
+          <p>{{ pricing_current_user['username'] }}</p>
+          <p class="muted">{{ pricing_current_user['role'] }}</p>
+          {% if is_owner and fx_snapshot %}
+          <p class="muted small">
+            1 {{ source_currency_code }} = {{ fx_snapshot.rate|fxrate }}
+            {% if fx_snapshot.provider_date %}({{ fx_snapshot.provider_date }}){% endif %}
+            {% if fx_snapshot.stale %}stale{% endif %}
+          </p>
+          {% elif not is_owner %}
+          <p class="muted small">Base pricing edits are managed in {{ source_currency_code }}.</p>
+          {% endif %}
+          <a class="button ghost" href="{{ url_for('pricing.logout') }}">Logout</a>
+        </div>
+        {% endif %}
+      </aside>
+      <main class="content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>
+
+

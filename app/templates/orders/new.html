@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}New Order{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>Create Order</h1>
+</div>
+<p class="muted" style="margin-bottom:12px;">Step 1 of 4: basic order and customer details.</p>
+<form method="post" class="card grid2">
+  {{ form.hidden_tag() }}
+  {% if is_operator %}
+    {{ form.order_id(type='hidden') }}
+    <label>Assigned Order ID
+      <select name="assigned_order_id" required>
+        <option value="">Select assigned order</option>
+        {% for option in operator_assignment_choices %}
+          <option value="{{ option.id }}" {% if selected_assignment_id and option.id == selected_assignment_id %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="full muted">Assigned Order ID is mandatory for operator order creation.</div>
+  {% else %}
+    <label>Order ID {{ form.order_id }}</label>
+  {% endif %}
+  <label>Enquiry Date {{ form.enquiry_date }}</label>
+  <label>Submission ID {{ form.submission_id }}</label>
+  <label>Confirmed On {{ form.confirmed_on }}</label>
+  <label>Customer Name {{ form.customer_name }}</label>
+  <label>Mobile {{ form.mobile }}</label>
+  <div style="display:flex; align-items:flex-end;">{{ form.submit(class_='btn') }}</div>
+</form>
+{% endblock %}

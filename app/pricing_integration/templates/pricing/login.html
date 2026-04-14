@@ -1,0 +1,24 @@
+{% extends "pricing/base.html" %}
+{% block title %}Login | Pricing Intelligence{% endblock %}
+{% block content %}
+<section class="panel narrow login-panel">
+  <div class="panel-header">
+    <p class="eyebrow">Access</p>
+    <h2>Sign in</h2>
+  </div>
+  <form method="post" class="stack">
+    <input type="hidden" name="pricing_csrf_token" value="{{ pricing_csrf_token }}">
+    <label>
+      <span>Username</span>
+      <input type="text" name="username" required>
+    </label>
+    <label>
+      <span>Password</span>
+      <input type="password" name="password" required>
+    </label>
+    <button class="button" type="submit">Login</button>
+  </form>
+</section>
+{% endblock %}
+
+

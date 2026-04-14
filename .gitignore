@@ -1,0 +1,53 @@
+.venv/
+.weasy-libs/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+instance/
+.env
+.env.*
+!.env.example
+data/backups/
+data/pdfs/
+data/uploads/
+data/pricing_uploads/
+data/**/checklist-preview.pdf
+data/**/checklist-preview.sig
+
+# Bytecode / tooling
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+
+# Local runtime / logs
+*.log
+server.out.log
+server.err.log
+.codex_run_*.py
+*.pid
+*.lock
+
+# Local temp/debug artifacts
+tmp_*
+*.tmp
+*.bak
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.cache.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+checklist-cutting/

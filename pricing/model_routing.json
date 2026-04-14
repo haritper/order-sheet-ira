@@ -1,0 +1,20 @@
+{
+  "mode": "safe_gpt54",
+  "modes": {
+    "safe_gpt54": {
+      "input_normalization": "gpt-5.4",
+      "generator": "gpt-5.4",
+      "ai_validator": "gpt-5.4"
+    },
+    "hybrid": {
+      "input_normalization": "gpt-5-mini",
+      "generator": "gpt-5.4",
+      "ai_validator": "gpt-5.4"
+    },
+    "cost_optimized": {
+      "input_normalization": "gpt-5-mini",
+      "generator": "gpt-5-mini",
+      "ai_validator": "gpt-5.4"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Order ID Counters{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>Order ID Counters</h1>
+</div>
+
+<form method="post" class="card grid2">
+  <label>POD Next Custom Number
+    <input type="number" min="1" name="pod_next_number" value="{{ counters.pod_next_number }}" required>
+  </label>
+  <label>IRA Next Custom Number
+    <input type="number" min="1" name="ira_next_number" value="{{ counters.ira_next_number }}" required>
+  </label>
+  <div style="display:flex; align-items:flex-end;">
+    <button type="submit" class="btn">Save Counters</button>
+  </div>
+</form>
+{% endblock %}

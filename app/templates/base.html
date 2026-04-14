@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Order Sheet{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="container">
+    <a href="{{ url_for('orders.list_orders') }}" class="brand">
+      <img src="{{ url_for('static', filename=brand_logo_filename) }}" alt="IRA" class="brand-logo">
+      <span class="brand-text">
+        <strong>IRA Sportswear</strong>
+        <small>Order Sheet System</small>
+      </span>
+    </a>
+    {% if current_user.is_authenticated %}
+      <nav class="main-nav">
+        <a href="{{ url_for('customer.customer_new') }}">Customer Form</a>
+        <a href="{{ url_for('orders.list_orders') }}">Orders</a>
+        {% if current_user.has_admin_panel_access %}
+          <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+          <a href="{{ url_for('admin.users') }}">Users</a>
+          <a href="{{ url_for('admin.order_assignments') }}">Assign Orders</a>
+          <a href="{{ url_for('admin.order_id_counters') }}">Order ID Counters</a>
+        {% endif %}
+        <a href="{{ url_for('auth.logout') }}">Logout</a>
+      </nav>
+    {% endif %}
+  </div>
+</header>
+<main class="container">
+  <section class="page-shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          {% if "Add at least one product configuration in Step 2 before continuing." in message %}
+            <div class="flash {{ category }} js-top-center-dialog-trigger" style="display:none;">{{ message }}</div>
+          {% else %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </section>
+</main>
+<div id="topCenterDialog" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; min-width:360px; max-width:90vw; background:#fff; border:1px solid #e3b5b5; border-radius:10px; box-shadow:0 10px 26px rgba(0,0,0,.18);">
+  <div style="padding:14px 16px; border-bottom:1px solid #f0d1d1; display:flex; align-items:center; justify-content:space-between;">
+    <strong style="color:#b32020;">Notice</strong>
+    <button id="topCenterDialogCloseX" type="button" style="background:transparent; border:none; font-size:20px; line-height:1; color:#b32020; cursor:pointer;">&times;</button>
+  </div>
+  <div id="topCenterDialogMessage" style="padding:14px 16px; color:#111;"></div>
+  <div style="padding:0 16px 14px; text-align:right;">
+    <button id="topCenterDialogOk" type="button" style="padding:7px 14px; border:1px solid #b32020; background:#b32020; color:#fff; border-radius:8px; cursor:pointer;">OK</button>
+  </div>
+</div>
+<script>
+  (function () {
+    const trigger = document.querySelector('.js-top-center-dialog-trigger');
+    if (!trigger) return;
+    const dialog = document.getElementById('topCenterDialog');
+    const msg = document.getElementById('topCenterDialogMessage');
+    const closeX = document.getElementById('topCenterDialogCloseX');
+    const okBtn = document.getElementById('topCenterDialogOk');
+    if (!dialog || !msg || !closeX || !okBtn) return;
+    msg.textContent = (trigger.textContent || '').trim();
+    dialog.style.display = 'block';
+    function closeDialog() { dialog.style.display = 'none'; }
+    closeX.addEventListener('click', closeDialog);
+    okBtn.addEventListener('click', closeDialog);
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,685 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 8mm; }
+    body { font-family: Arial, sans-serif; font-size: 12pt; color: #111; }
+    .page { page-break-after: always; }
+    h1,h2,h3 { margin: 0 0 5px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    th, td { border: 1px solid #2f2f2f; padding: 4px; vertical-align: top; }
+    th { background: #f0f2f6; }
+    .no-border > tr > td,
+    .no-border > tbody > tr > td { border: 0; padding: 0; }
+    .brand-logo { width: 36mm; height: auto; object-fit: contain; }
+    .preview-main { width: 100%; min-height: 48mm; max-height: 60mm; object-fit: contain; display: block; margin: 0 auto; border: 1px solid #aaa; background: #fff; }
+    .preview-side { width: 100%; max-height: 34mm; object-fit: contain; display: block; margin: 0 auto; border: 1px solid #aaa; background: #fff; }
+    .preview-logo { width: 100%; max-width: 100%; min-height: 9mm; max-height: 14mm; object-fit: contain; display: block; margin: 0 auto; border: 1px solid #aaa; background: #fff; }
+    .muted { color: #555; }
+    .check-row { margin: 0 0 6px; }
+    .sheet-title { font-size: 12pt; font-weight: 700; margin-bottom: 6px; }
+    .meta-table th { width: 36%; background: #f4f6fb; }
+    .meta-table td { border: 1px solid #2f2f2f; }
+    .section-bar {
+      background: #2c467f;
+      color: #fff;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 5px 8px;
+      margin: 8px 0 0;
+      border: 1px solid #223b6c;
+    }
+    .gender-bar { text-align: center; }
+    .mini { font-size: 12pt; }
+    .upper { text-transform: uppercase; }
+    .order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #9099a6;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+      font-size: 12pt;
+    }
+    .order-id { font-weight: 700; }
+    .design-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 4px; }
+    .design-meta { break-inside: avoid; page-break-inside: avoid; }
+    .design-grid { break-inside: avoid; page-break-inside: avoid; }
+    .logo-grid { width: 100%; table-layout: fixed; }
+    .design-meta th, .design-meta td { padding: 3px 4px; }
+    .design-grid th, .design-grid td { padding: 3px 4px; }
+    .design-block.compact .preview-main { min-height: 44mm; max-height: 54mm; }
+    .design-block.compact .preview-logo { max-width: 44mm; min-height: 8mm; max-height: 12mm; }
+    .design-block.compact .design-meta th,
+    .design-block.compact .design-meta td,
+    .design-block.compact .design-grid th,
+    .design-block.compact .design-grid td { padding: 2px 3px; }
+    /* Locked non-design sizing */
+    .page-overview,
+    .page-packing,
+    .page-notes { font-size: 12pt; }
+    .page-overview .mini,
+    .page-packing .mini,
+    .page-notes .mini { font-size: 12pt; }
+    .page-overview .order-header,
+    .page-packing .order-header,
+    .page-notes .order-header { font-size: 12pt; }
+    .page-overview .section-bar,
+    .page-packing .section-bar,
+    .page-notes .section-bar { font-size: 12pt; }
+    .page-overview h2, .page-overview h3,
+    .page-notes h2, .page-notes h3 { font-size: 12pt; margin: 0 0 5px; }
+    .page-packing h2, .page-packing h3 { font-size: 12pt; margin: 0 0 5px; }
+    .overview-category { margin-top: 6px; }
+    .overview-subtitle { margin-top: 5px; }
+    .overview-table { margin: 0 0 6px; table-layout: auto; width: 100%; }
+    .overview-table th, .overview-table td { padding: 3px 5px; vertical-align: middle; white-space: nowrap; }
+    .overview-table th:first-child, .overview-table td:first-child { width: 30%; }
+    .overview-table th:last-child, .overview-table td:last-child { min-width: 12mm; }
+    .overview-category { break-inside: avoid; page-break-inside: avoid; }
+    .overview-subtitle { break-after: avoid; page-break-after: avoid; }
+    .overview-table { break-inside: avoid; page-break-inside: avoid; }
+  </style>
+</head>
+<body>
+
+<!-- Page 1 -->
+<div class="page page-overview">
+  <div class="order-header">
+    <div class="order-id">ORDER ID {{ display_order_id }}</div>
+    <div>IRA ORDER SHEET</div>
+  </div>
+  <table class="no-border">
+    <tr>
+      <td style="width:38%; vertical-align:middle;">
+        {% if ira_logo_uri %}<img class="brand-logo" src="{{ ira_logo_uri }}" alt="IRA">{% endif %}
+      </td>
+      <td style="width:62%;">
+        <table class="meta-table mini upper">
+          <tr><th style="width:40%;">Order ID</th><td>{{ display_order_id }}</td></tr>
+          <tr><th>Enquiry Date</th><td>{{ order.enquiry_date or '' }}</td></tr>
+          <tr><th>Submission ID</th><td>{{ order.submission_id or '' }}</td></tr>
+          <tr><th>Confirmed On</th><td>{{ order.confirmed_on or '' }}</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  <table class="mini upper" style="margin-top:4px;">
+    <tr>
+      <th style="width:18%;">Name</th>
+      <td style="width:32%;">{{ order.customer_name or '' }}</td>
+      <th style="width:14%;">Mobile</th>
+      <td style="width:36%;">{{ order.mobile or '' }}</td>
+    </tr>
+    {% if show_shipping_details %}
+    <tr>
+      <th>Shipping Address</th>
+      <td colspan="3">{{ order.shipping_address or '' }}</td>
+    </tr>
+    <tr>
+      <th>City</th>
+      <td>{{ order.city or '' }}</td>
+      <th>Zip Code</th>
+      <td>{{ order.zip_code or '' }}</td>
+    </tr>
+    <tr>
+      <th>State</th>
+      <td>{{ order.state or '' }}</td>
+      <th>Country</th>
+      <td>{{ order.country or 'USA' }}</td>
+    </tr>
+    {% endif %}
+  </table>
+
+  {% set sections = [('mens', "MEN'S"), ('womens', "WOMEN'S"), ('youth', "KIDS / YOUTH")] %}
+  {% for key, title in sections %}
+    {% set block = order_overview[key] %}
+    {% set grouped_tables = block.get('grouped_tables', []) %}
+    {% set rows = block.get('rows', []) %}
+    {% set ns = namespace(total=0) %}
+    {% if grouped_tables %}
+      {% for grp in grouped_tables %}
+        {% for row in grp.get('rows', []) %}
+          {% set ns.total = ns.total + (row.get('sizes', {}).get('TOTAL', 0) or 0) %}
+        {% endfor %}
+      {% endfor %}
+    {% else %}
+      {% for row in rows %}
+        {% set ns.total = ns.total + (row.get('sizes', {}).get('TOTAL', 0) or 0) %}
+      {% endfor %}
+    {% endif %}
+    {% set category_total = ns.total %}
+    {% if category_total > 0 %}
+    <div class="overview-category">
+    <div class="section-bar mini gender-bar">{{ title }} UNIFORMS</div>
+    {% if grouped_tables %}
+      {% for grp in grouped_tables %}
+      {% set grp_title = grp.get('title', '') %}
+      {% if grp_title %}
+      <div class="section-bar mini overview-subtitle">{{ grp_title }} - {{ title|replace(' UNIFORMS','') }}</div>
+      {% endif %}
+      <table class="mini upper overview-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            {% if grp.get('rows') and grp.get('rows')[0].get('sizes') %}
+              {% for size in grp.get('rows')[0].get('sizes', {}).keys() %}<th>{{ size }}</th>{% endfor %}
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in grp.get('rows', []) %}
+            <tr>
+              <td>{{ row.get('label', 'Product') }}</td>
+              {% for qty in row.get('sizes', {}).values() %}<td>{{ qty }}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endfor %}
+    {% else %}
+      <table class="mini upper overview-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            {% if rows and rows[0].get('sizes') %}
+              {% for size in rows[0].get('sizes', {}).keys() %}<th>{{ size }}</th>{% endfor %}
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.get('label', 'Product') }}</td>
+              {% for qty in row.get('sizes', {}).values() %}<td>{{ qty }}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+    </div>
+    {% endif %}
+  {% endfor %}
+  {% set acc = order_overview['accessories'] %}
+  {% set acc_total = (acc['CAP'] or 0) + (acc['BAGGY_CAP'] or 0) + (acc['HAT'] or 0) + (acc['PAD_CLAD'] or 0) + (acc['HELMET_CLAD'] or 0) %}
+  {% if acc_total > 0 %}
+    <div class="section-bar mini">ACCESSORIES</div>
+    <table class="mini upper overview-table">
+      <tbody>
+        <tr>
+          <th>Product</th>
+          <th>Quantity</th>
+          <th>Product</th>
+          <th>Quantity</th>
+        </tr>
+        <tr>
+          <td>Cap</td>
+          <td>{{ acc['CAP'] }}</td>
+          <td>Helmet Clad</td>
+          <td>{{ acc['HELMET_CLAD'] }}</td>
+        </tr>
+        <tr>
+          <td>Baggy Cap</td>
+          <td>{{ acc['BAGGY_CAP'] }}</td>
+          <td>Pad Clad</td>
+          <td>{{ acc['PAD_CLAD'] }}</td>
+        </tr>
+        <tr>
+          <td>Hat</td>
+          <td>{{ acc['HAT'] }}</td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<!-- Page 2 -->
+<div class="page page-design">
+  <div class="order-header">
+    <div class="order-id">ORDER ID {{ display_order_id }}</div>
+    <div></div>
+  </div>
+  {% for spec in tshirt_specs %}
+    <div class="design-block">
+    {% set pos = (spec.logo_positions or '')|lower %}
+    {% set right_chest_path = spec.logo_front_right_chest_path %}
+    {% set left_chest_path = spec.logo_front_left_chest_path %}
+    {% set sponser_path = spec.logo_front_sponser_path %}
+    {% set right_up_path = spec.logo_right_up_path %}
+    {% set right_down_path = spec.logo_right_down_path %}
+    {% set left_up_path = spec.logo_left_up_path %}
+    {% set left_down_path = spec.logo_left_down_path %}
+    {% set back_flag_path = spec.logo_back_flag_path %}
+    {% set back_logo_path = spec.logo_back_logo_path %}
+    {% set back_bottom_path = spec.logo_back_bottom_path %}
+    {% set right_chest_uri = file_uri(right_chest_path) if right_chest_path and (right_chest_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set left_chest_uri = file_uri(left_chest_path) if left_chest_path and (left_chest_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set sponser_uri = file_uri(sponser_path) if sponser_path and (sponser_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set right_up_uri = file_uri(right_up_path) if right_up_path and (right_up_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set right_down_uri = file_uri(right_down_path) if right_down_path and (right_down_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set left_up_uri = file_uri(left_up_path) if left_up_path and (left_up_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set left_down_uri = file_uri(left_down_path) if left_down_path and (left_down_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set back_flag_uri = file_uri(back_flag_path) if back_flag_path and (back_flag_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set back_logo_uri = file_uri(back_logo_path) if back_logo_path and (back_logo_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set back_bottom_uri = file_uri(back_bottom_path) if back_bottom_path and (back_bottom_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set has_right_chest = 'front_right_chest_logo' in pos %}
+    {% set has_left_chest = 'front_left_chest_logo' in pos %}
+    {% set has_front_chest = ('front_sponser_logo' in pos) or ('front_sponsor_logo' in pos) %}
+    {% set has_right_up = 'right_up_logo' in pos %}
+    {% set has_right_down = 'right_down_logo' in pos %}
+    {% set has_left_up = 'left_up_logo' in pos %}
+    {% set has_left_down = 'left_down_logo' in pos %}
+    {% set has_right_sleeve = has_right_up or has_right_down %}
+    {% set has_left_sleeve = has_left_up or has_left_down %}
+    {% set has_back_flag = 'back_flag_logo' in pos %}
+    {% set has_back_logo = 'back_logo' in pos %}
+    {% set has_back_bottom = 'back_bottom_logo' in pos %}
+    {% set style_number = spec.style_number %}
+    {% set style_type = spec.collar_type %}
+    {% set fabric = spec.fabric %}
+    {% set primary_color = spec.panel_color_primary %}
+    {% set secondary_color = spec.panel_color_secondary %}
+    {% set show_style_number = style_number and (style_number|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_style_type = style_type and (style_type|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_fabric = fabric and (fabric|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_primary_color = primary_color and (primary_color|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_secondary_color = secondary_color and (secondary_color|string|trim|lower) not in ['none', 'null'] %}
+    <h3 class="upper">{{ spec.garment_type }} | {{ spec.gender or '' }} | {{ spec.sleeve_type or '' }}</h3>
+    <table class="mini upper design-meta">
+      {% if show_style_number or show_style_type or show_fabric %}
+      <tr>
+        {% if show_style_number %}<th>Style #</th><td>{{ style_number }}</td>{% endif %}
+        {% if show_style_type %}<th>Style Type</th><td>{{ style_type }}</td>{% endif %}
+        {% if show_fabric %}<th>Fabric</th><td>{{ fabric }}</td>{% endif %}
+      </tr>
+      {% endif %}
+      {% if show_primary_color or show_secondary_color %}
+      <tr>
+        {% if show_primary_color %}<th>Primary Color</th><td>{{ primary_color }}</td>{% endif %}
+        {% if show_secondary_color %}<th>Secondary Color</th><td>{{ secondary_color }}</td>{% endif %}
+      </tr>
+      {% endif %}
+    </table>
+    <table class="mini upper design-grid">
+      <tr><th style="width:50%;">Front</th><th style="width:50%;">Right</th></tr>
+      <tr>
+        <td>{% if spec.front_image_path and file_uri(spec.front_image_path) %}<img class="preview-main" src="{{ file_uri(spec.front_image_path) }}" alt="Front">{% endif %}</td>
+        <td>{% if spec.right_image_path and file_uri(spec.right_image_path) %}<img class="preview-main" src="{{ file_uri(spec.right_image_path) }}" alt="Right">{% endif %}</td>
+      </tr>
+      {% set show_right_chest  = has_right_chest and right_chest_uri %}
+      {% set show_left_chest   = has_left_chest and left_chest_uri %}
+      {% set show_front_chest  = has_front_chest and sponser_uri %}
+      {% set show_right_up     = has_right_up and right_up_uri %}
+      {% set show_right_down   = has_right_down and right_down_uri %}
+      {% set show_back_flag    = has_back_flag and back_flag_uri %}
+      {% set show_back_logo    = has_back_logo and back_logo_uri %}
+      {% set show_back_bottom  = has_back_bottom and back_bottom_uri %}
+      {% set show_left_up      = has_left_up and left_up_uri %}
+      {% set show_left_down    = has_left_down and left_down_uri %}
+      {% set has_front_logo_cols = show_right_chest or show_left_chest or show_front_chest %}
+      {% set has_right_logo_rows = show_right_up or show_right_down %}
+      {% set has_back_logo_cols = show_back_flag or show_back_logo or show_back_bottom %}
+      {% set has_left_logo_rows = show_left_up or show_left_down %}
+      {% if has_front_logo_cols or has_right_logo_rows %}
+      <tr>
+        <td style="padding:0;">
+          {% if has_front_logo_cols %}
+          <table class="mini upper logo-grid" style="margin:0; border:none;">
+            <tr>
+              {% if show_right_chest %}<th style="width:33.33%;">Right Chest Logo</th>{% endif %}
+              {% if show_left_chest %}<th style="width:33.33%;">Left Chest Logo</th>{% endif %}
+              {% if show_front_chest %}<th style="width:33.33%;">Sponser Logo</th>{% endif %}
+            </tr>
+            <tr>
+              {% if show_right_chest %}<td><img class="preview-logo" src="{{ right_chest_uri }}" alt="Right Chest Logo"></td>{% endif %}
+              {% if show_left_chest %}<td><img class="preview-logo" src="{{ left_chest_uri }}" alt="Left Chest Logo"></td>{% endif %}
+              {% if show_front_chest %}<td><img class="preview-logo" src="{{ sponser_uri }}" alt="Sponser Logo"></td>{% endif %}
+            </tr>
+          </table>
+          {% else %}&nbsp;{% endif %}
+        </td>
+        <td style="padding:0;">
+          {% if has_right_logo_rows %}
+          <table class="mini upper logo-grid" style="margin:0; border:none;">
+            <tr>
+              {% if show_right_up %}<th style="width:50%;">Right Up Logo</th>{% endif %}
+              {% if show_right_down %}<th style="width:50%;">Right Down Logo</th>{% endif %}
+            </tr>
+            <tr>
+              {% if show_right_up %}<td><img class="preview-logo" src="{{ right_up_uri }}" alt="Right Up Logo"></td>{% endif %}
+              {% if show_right_down %}<td><img class="preview-logo" src="{{ right_down_uri }}" alt="Right Down Logo"></td>{% endif %}
+            </tr>
+          </table>
+          {% else %}&nbsp;{% endif %}
+        </td>
+      </tr>
+      {% endif %}
+      <tr><th>Back</th><th>Left</th></tr>
+      <tr>
+        <td>{% if spec.back_image_path and file_uri(spec.back_image_path) %}<img class="preview-main" src="{{ file_uri(spec.back_image_path) }}" alt="Back">{% endif %}</td>
+        <td>{% if spec.left_image_path and file_uri(spec.left_image_path) %}<img class="preview-main" src="{{ file_uri(spec.left_image_path) }}" alt="Left">{% endif %}</td>
+      </tr>
+      {% if has_back_logo_cols or has_left_logo_rows %}
+      <tr>
+        <td style="padding:0;">
+          {% if has_back_logo_cols %}
+          <table class="mini upper logo-grid" style="margin:0; border:none;">
+            <tr>
+              {% if show_back_flag %}<th style="width:33.33%;">Flag Logo</th>{% endif %}
+              {% if show_back_logo %}<th style="width:33.33%;">Logo</th>{% endif %}
+              {% if show_back_bottom %}<th style="width:33.33%;">Bottom Logo</th>{% endif %}
+            </tr>
+            <tr>
+              {% if show_back_flag %}<td><img class="preview-logo" src="{{ back_flag_uri }}" alt="Flag Logo"></td>{% endif %}
+              {% if show_back_logo %}<td><img class="preview-logo" src="{{ back_logo_uri }}" alt="Logo"></td>{% endif %}
+              {% if show_back_bottom %}<td><img class="preview-logo" src="{{ back_bottom_uri }}" alt="Bottom Logo"></td>{% endif %}
+            </tr>
+          </table>
+          {% else %}&nbsp;{% endif %}
+        </td>
+        <td style="padding:0;">
+          {% if has_left_logo_rows %}
+          <table class="mini upper logo-grid" style="margin:0; border:none;">
+            <tr>
+              {% if show_left_up %}<th style="width:50%;">Left Up Logo</th>{% endif %}
+              {% if show_left_down %}<th style="width:50%;">Left Down Logo</th>{% endif %}
+            </tr>
+            <tr>
+              {% if show_left_up %}<td><img class="preview-logo" src="{{ left_up_uri }}" alt="Left Up Logo"></td>{% endif %}
+              {% if show_left_down %}<td><img class="preview-logo" src="{{ left_down_uri }}" alt="Left Down Logo"></td>{% endif %}
+            </tr>
+          </table>
+          {% else %}&nbsp;{% endif %}
+        </td>
+      </tr>
+      {% endif %}
+    </table>
+    </div>
+  {% else %}
+    <p>No tshirt design rows available.</p>
+  {% endfor %}
+</div>
+
+<!-- Page 3 (if trouser designs exist) -->
+{% if trouser_specs %}
+<div class="page page-design">
+  <div class="order-header">
+    <div class="order-id">ORDER ID {{ display_order_id }}</div>
+    <div></div>
+  </div>
+  {% for spec in trouser_specs %}
+    <div class="design-block">
+    {% set pos = (spec.logo_positions or '')|lower %}
+    {% set right_logo_path = spec.logo_right_path %}
+    {% set left_logo_path = spec.logo_left_path %}
+    {% set right_logo_uri = file_uri(right_logo_path) if right_logo_path and (right_logo_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set left_logo_uri = file_uri(left_logo_path) if left_logo_path and (left_logo_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set has_right_side_logo = 'right_side_logo' in pos %}
+    {% set has_left_side_logo = 'left_side_logo' in pos %}
+    {% set style_number = spec.style_number %}
+    {% set style_type = spec.collar_type %}
+    {% set fabric = spec.fabric %}
+    {% set primary_color = spec.panel_color_primary %}
+    {% set secondary_color = spec.panel_color_secondary %}
+    {% set show_style_number = style_number and (style_number|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_style_type = style_type and (style_type|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_fabric = fabric and (fabric|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_primary_color = primary_color and (primary_color|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_secondary_color = secondary_color and (secondary_color|string|trim|lower) not in ['none', 'null'] %}
+    <h3 class="upper">{{ spec.garment_type }} | {{ spec.gender or '' }}</h3>
+    <table class="mini upper design-meta">
+      {% if show_style_number or show_style_type or show_fabric %}
+      <tr>
+        {% if show_style_number %}<th>Style #</th><td>{{ style_number }}</td>{% endif %}
+        {% if show_style_type %}<th>Style Type</th><td>{{ style_type }}</td>{% endif %}
+        {% if show_fabric %}<th>Fabric</th><td>{{ fabric }}</td>{% endif %}
+      </tr>
+      {% endif %}
+      {% if show_primary_color or show_secondary_color %}
+      <tr>
+        {% if show_primary_color %}<th>Primary Color</th><td>{{ primary_color }}</td>{% endif %}
+        {% if show_secondary_color %}<th>Secondary Color</th><td>{{ secondary_color }}</td>{% endif %}
+      </tr>
+      {% endif %}
+    </table>
+    <table class="mini upper design-grid">
+      <tr><th style="width:50%;">Front</th><th style="width:50%;">Right</th></tr>
+      <tr>
+        <td>{% if spec.front_image_path and file_uri(spec.front_image_path) %}<img class="preview-main" src="{{ file_uri(spec.front_image_path) }}" alt="Front">{% endif %}</td>
+        <td>{% if spec.right_image_path and file_uri(spec.right_image_path) %}<img class="preview-main" src="{{ file_uri(spec.right_image_path) }}" alt="Right">{% endif %}</td>
+      </tr>
+      {% set show_right_side = has_right_side_logo and right_logo_uri %}
+      {% set show_left_side  = has_left_side_logo and left_logo_uri %}
+      {% if show_right_side or show_left_side %}
+      <tr>
+        <td style="padding:0;">
+          <table class="mini upper" style="margin:0; border:none;">
+            <tr>
+              {% if show_right_side %}<th style="width:50%;">Right Side Logo</th>{% endif %}
+              {% if show_left_side %}<th style="width:50%;">Left Side Logo</th>{% endif %}
+            </tr>
+            <tr>
+              {% if show_right_side %}<td><img class="preview-logo" src="{{ right_logo_uri }}" alt="Right Side Logo"></td>{% endif %}
+              {% if show_left_side %}<td><img class="preview-logo" src="{{ left_logo_uri }}" alt="Left Side Logo"></td>{% endif %}
+            </tr>
+          </table>
+        </td>
+        <td></td>
+      </tr>
+      {% endif %}
+      <tr><th>Back</th><th>Left</th></tr>
+      <tr>
+        <td>{% if spec.back_image_path and file_uri(spec.back_image_path) %}<img class="preview-main" src="{{ file_uri(spec.back_image_path) }}" alt="Back">{% endif %}</td>
+        <td>{% if spec.left_image_path and file_uri(spec.left_image_path) %}<img class="preview-main" src="{{ file_uri(spec.left_image_path) }}" alt="Left">{% endif %}</td>
+      </tr>
+    </table>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Accessories Design -->
+{% if accessory_specs %}
+<div class="page page-design">
+  <div class="order-header">
+    <div class="order-id">ORDER ID {{ display_order_id }}</div>
+    <div>ACCESSORIES</div>
+  </div>
+  <div class="section-bar">Accessories Design</div>
+  {% for spec in accessory_specs %}
+    <div class="design-block">
+    {% set g = (spec.garment_type or '')|lower %}
+    {% set pos = (spec.logo_positions or '')|lower %}
+    {% set is_cap = g in ['cap', 'baggy cap'] %}
+    {% set is_hat = g == 'hat' %}
+    {% set is_helmet = g in ['helmat clad', 'helmet clad'] %}
+    {% set is_pad = g == 'pad clad' %}
+    {% set acc_key = 'helmet clad' if g == 'helmat clad' else g %}
+    {% set qty = accessory_quantity_map.get(acc_key, 0) %}
+    {% set front_logo_path = spec.logo_front_path %}
+    {% set right_logo_path = spec.logo_right_path %}
+    {% set left_logo_path = spec.logo_left_path %}
+    {% set front_logo_uri = file_uri(front_logo_path) if front_logo_path and (front_logo_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set right_logo_uri = file_uri(right_logo_path) if right_logo_path and (right_logo_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set left_logo_uri = file_uri(left_logo_path) if left_logo_path and (left_logo_path|string|trim|lower) not in ['none', 'null'] else '' %}
+    {% set has_front_side_logo = ('front_front_side_logo' in pos) or ('front_side_logo' in pos) %}
+    {% set has_right_side_logo = 'right_side_logo' in pos %}
+    {% set has_left_side_logo = 'left_side_logo' in pos %}
+    {% set primary_color = spec.panel_color_primary %}
+    {% set secondary_color = spec.panel_color_secondary %}
+    {% set logo_type = spec.collar_type %}
+    {% set fabric = spec.fabric %}
+    {% set show_primary_color = primary_color and (primary_color|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_secondary_color = secondary_color and (secondary_color|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_logo_type = logo_type and (logo_type|string|trim|lower) not in ['none', 'null'] %}
+    {% set show_fabric = fabric and (fabric|string|trim|lower) not in ['none', 'null'] %}
+
+    <h3 class="upper">{{ spec.garment_type }} | {{ spec.gender or '' }}</h3>
+    <table class="mini upper design-meta">
+      {% if is_cap %}
+      <tr>
+        {% if show_primary_color %}<th>Cap Color</th>{% endif %}
+        {% if show_secondary_color %}<th>Bore Hole Color</th>{% endif %}
+        {% if show_logo_type %}<th>Logo</th>{% endif %}
+        {% if show_fabric %}<th>Fabric</th>{% endif %}
+        <th>Quantity</th>
+      </tr>
+      <tr>
+        {% if show_primary_color %}<td>{{ primary_color }}</td>{% endif %}
+        {% if show_secondary_color %}<td>{{ secondary_color }}</td>{% endif %}
+        {% if show_logo_type %}<td>{{ logo_type }}</td>{% endif %}
+        {% if show_fabric %}<td>{{ fabric }}</td>{% endif %}
+        <td>{{ qty }}</td>
+      </tr>
+      {% elif is_hat %}
+      <tr>
+        {% if show_primary_color %}<th>Hat Color</th>{% endif %}
+        {% if show_logo_type %}<th>Logo</th>{% endif %}
+        {% if show_fabric %}<th>Fabric</th>{% endif %}
+        <th>Quantity</th>
+      </tr>
+      <tr>
+        {% if show_primary_color %}<td>{{ primary_color }}</td>{% endif %}
+        {% if show_logo_type %}<td>{{ logo_type }}</td>{% endif %}
+        {% if show_fabric %}<td>{{ fabric }}</td>{% endif %}
+        <td>{{ qty }}</td>
+      </tr>
+      {% elif is_helmet %}
+      <tr>
+        {% if show_primary_color %}<th>Helmet Clad Color</th>{% endif %}
+        {% if show_logo_type %}<th>Logo</th>{% endif %}
+        {% if show_fabric %}<th>Fabric</th>{% endif %}
+        <th>Quantity</th>
+      </tr>
+      <tr>
+        {% if show_primary_color %}<td>{{ primary_color }}</td>{% endif %}
+        {% if show_logo_type %}<td>{{ logo_type }}</td>{% endif %}
+        {% if show_fabric %}<td>{{ fabric }}</td>{% endif %}
+        <td>{{ qty }}</td>
+      </tr>
+      {% elif is_pad %}
+      <tr>
+        {% if show_primary_color %}<th>Pad Clad Color</th>{% endif %}
+        {% if show_logo_type %}<th>Logo</th>{% endif %}
+        {% if show_fabric %}<th>Fabric</th>{% endif %}
+        <th>Quantity</th>
+      </tr>
+      <tr>
+        {% if show_primary_color %}<td>{{ primary_color }}</td>{% endif %}
+        {% if show_logo_type %}<td>{{ logo_type }}</td>{% endif %}
+        {% if show_fabric %}<td>{{ fabric }}</td>{% endif %}
+        <td>{{ qty }}</td>
+      </tr>
+      {% endif %}
+    </table>
+
+    {% if is_cap %}
+    <table class="mini upper design-grid">
+      {% set show_right_side_logo = has_right_side_logo and right_logo_uri %}
+      {% set show_front_side_logo = has_front_side_logo and front_logo_uri %}
+      {% set show_left_side_logo  = has_left_side_logo and left_logo_uri %}
+      <tr><th style="width:33.33%;">Right</th><th style="width:33.33%;">Front</th><th style="width:33.33%;">Left</th></tr>
+      <tr>
+        <td>{% if spec.right_image_path and file_uri(spec.right_image_path) %}<img class="preview-main" src="{{ file_uri(spec.right_image_path) }}" alt="Right">{% endif %}</td>
+        <td>{% if spec.front_image_path and file_uri(spec.front_image_path) %}<img class="preview-main" src="{{ file_uri(spec.front_image_path) }}" alt="Front">{% endif %}</td>
+        <td>{% if spec.left_image_path and file_uri(spec.left_image_path) %}<img class="preview-main" src="{{ file_uri(spec.left_image_path) }}" alt="Left">{% endif %}</td>
+      </tr>
+      <tr>
+        <th>Right Side Logo</th>
+        <th>Front Side Logo</th>
+        <th>Left Side Logo</th>
+      </tr>
+      <tr>
+        <td>{% if show_right_side_logo %}<img class="preview-logo" src="{{ right_logo_uri }}" alt="Right Side Logo">{% else %}&nbsp;{% endif %}</td>
+        <td>{% if show_front_side_logo %}<img class="preview-logo" src="{{ front_logo_uri }}" alt="Front Side Logo">{% else %}&nbsp;{% endif %}</td>
+        <td>{% if show_left_side_logo %}<img class="preview-logo" src="{{ left_logo_uri }}" alt="Left Side Logo">{% else %}&nbsp;{% endif %}</td>
+      </tr>
+    </table>
+    {% else %}
+    <table class="mini upper design-grid">
+      {% set show_front_side_logo = has_front_side_logo and front_logo_uri %}
+      <tr><th>Front</th></tr>
+      <tr>
+        <td>{% if spec.front_image_path and file_uri(spec.front_image_path) %}<img class="preview-main" src="{{ file_uri(spec.front_image_path) }}" alt="Front">{% endif %}</td>
+      </tr>
+      {% if show_front_side_logo %}
+      <tr>
+        <td><img class="preview-logo" src="{{ front_logo_uri }}" alt="Front Side Logo"></td>
+      </tr>
+      {% endif %}
+    </table>
+    {% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Packing list -->
+<div class="page page-packing">
+  <div class="order-header">
+    <div class="order-id">ORDER ID {{ display_order_id }}</div>
+    <div>PACKING LIST</div>
+  </div>
+  <div class="section-bar">Packing List (Category + Sleeve)</div>
+  {% set groups = [
+    ('mens_half', 'MENS - HALF'),
+    ('mens_full', 'MENS - FULL'),
+    ('womens_half', 'WOMENS - HALF'),
+    ('womens_full', 'WOMENS - FULL'),
+    ('youth_half', 'YOUTH - HALF'),
+    ('youth_full', 'YOUTH - FULL')
+  ] %}
+  {% for key, title in groups %}
+    {% if packaging_groups[key] %}
+    <h3 class="upper">{{ title }}</h3>
+    <table class="mini upper">
+      <thead>
+        <tr>
+          <th>S.No</th><th>Player Name</th><th>No</th><th>Sleeve</th><th>Tshirt Size</th><th>Tshirt Qty</th><th>Trouser Size</th><th>Trouser Qty</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in packaging_groups[key] %}
+          <tr>
+            <td>{{ row.serial_no }}</td>
+            <td>{{ row.player_name }}</td>
+            <td>{{ row.number }}</td>
+            <td>{{ row.sleeve_type }}</td>
+            <td>{{ row.tshirt_size }}</td>
+            <td>{{ row.tshirt_qty }}</td>
+            <td>{{ row.trouser_size }}</td>
+            <td>{{ row.trouser_qty }}</td>
+            <!-- <td>{{ row.set_qty }}</td> -->
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endfor %}
+</div>
+
+<!-- Common notes + checklist -->
+<div class="page page-notes">
+  <div class="order-header">
+    <div class="order-id">ORDER ID {{ display_order_id }}</div>
+    <div>NOTES & CHECKLIST</div>
+  </div>
+  <div class="section-bar">Common Design Notes</div>
+  <p style="white-space: pre-wrap;">{{ common_design_notes or 'No common design notes.' }}</p>
+
+  <div class="section-bar" style="margin-top:10px;">Common Production Notes</div>
+  <p style="white-space: pre-wrap;">{{ common_production_notes or 'No common production notes.' }}</p>
+
+  <div class="section-bar" style="margin-top:10px;">Approval Checklist</div>
+  {% for paragraph in approval_paragraphs %}
+    <p class="check-row">{{ paragraph }}</p>
+  {% endfor %}
+  <p style="margin-top:8px;"><strong>Approver Notes:</strong> {{ order.approval_notes or '' }}</p>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,215 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 8mm; }
+    body { font-family: Arial, sans-serif; font-size: 9pt; color: #111; margin: 0; }
+    .page { page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+
+    .card {
+      width: 100%;
+      border: 2px solid #111;
+      box-sizing: border-box;
+    }
+    .card-title {
+      font-size: 14pt;
+      font-weight: 700;
+      padding: 10px 12px;
+      border-bottom: 2px solid #111;
+    }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
+    .card-grid td { vertical-align: top; }
+    .left-col { width: 66%; border-right: 1px solid #8a8a8a; }
+    .right-col { width: 34%; padding: 8px; box-sizing: border-box; }
+
+    .sec-title {
+      font-size: 12pt;
+      font-weight: 700;
+      background: #efefef;
+      border-top: 1px solid #8a8a8a;
+      border-bottom: 1px solid #8a8a8a;
+      padding: 6px 12px;
+    }
+
+    .details td {
+      border: 1px solid #b5b5b5;
+      padding: 8px 10px;
+      font-size: 10.5pt;
+      vertical-align: top;
+      word-break: break-word;
+    }
+    .details .lbl { width: 20%; font-weight: 700; color: #3a3a3a; background: #f5f5f5; }
+    .details .val { width: 30%; }
+
+    .sec-pad { padding: 8px 10px; }
+
+    .size-table th,
+    .size-table td {
+      border: 1px solid #8a8a8a;
+      text-align: center;
+      padding: 8px 2px;
+      font-size: 10pt;
+      font-weight: 700;
+    }
+    .size-table td { font-size: 11pt; font-weight: 600; }
+    .size-table .tot { background: #f0f0f0; font-weight: 700; }
+
+    .youth-title {
+      font-size: 10pt;
+      font-weight: 700;
+      margin: 8px 0 5px;
+    }
+
+    .prod-table {
+      width: 78%;
+      min-width: 420px;
+    }
+    .prod-table th,
+    .prod-table td {
+      border: 1px solid #8a8a8a;
+      text-align: center;
+      padding: 12px 14px;
+      font-size: 10pt;
+      font-weight: 700;
+    }
+    .prod-table td {
+      min-height: 42px;
+      font-weight: 400;
+      height: 42px;
+    }
+
+    .image-panel {
+      width: 100%;
+      height: 340px;
+      border: 1px solid #8a8a8a;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .image-panel img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .image-empty {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #666;
+      text-align: center;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+{% if rows %}
+  {% for row in rows %}
+  <div class="page">
+    <div class="card">
+      <div class="card-title">Production — {{ row.display_title }}</div>
+
+      <table class="card-grid">
+        <tr>
+          <td class="left-col">
+            <div class="sec-title">A — Order Details</div>
+            <div class="sec-pad">
+              <table class="details">
+                <tr>
+                  <td class="lbl">Order ID</td>
+                  <td class="val">{{ row.order_id }}</td>
+                  <td class="lbl">Created Date</td>
+                  <td class="val">{{ row.enquiry_date }}</td>
+                </tr>
+                <tr>
+                  <td class="lbl">Style</td>
+                  <td class="val">{{ row.style }}</td>
+                  <td class="lbl">Fabric</td>
+                  <td class="val">{{ row.fabric }}</td>
+                </tr>
+                <tr>
+                  <td class="lbl">Colour</td>
+                  <td class="val">{{ row.colour }}</td>
+                  <td class="lbl">Pattern</td>
+                  <td class="val">{{ row.pattern }}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="sec-title">B — Size Breakdown</div>
+            <div class="sec-pad">
+              <table class="size-table">
+                <tr>
+                  {% for head in row.adult_headers %}
+                  <th class="{% if head == 'TOTAL' %}tot{% endif %}">{{ head }}</th>
+                  {% endfor %}
+                </tr>
+                <tr>
+                  {% for qty in row.adult_values %}
+                  <td class="{% if loop.last %}tot{% endif %}">{{ qty if qty > 0 else '' }}</td>
+                  {% endfor %}
+                </tr>
+              </table>
+
+              {% if row.show_youth %}
+              <div class="youth-title">YOUTH SIZES</div>
+              <table class="size-table">
+                <tr>
+                  {% for head in row.youth_headers %}
+                  <th class="{% if head == 'TOTAL' %}tot{% endif %}">{{ head }}</th>
+                  {% endfor %}
+                </tr>
+                <tr>
+                  {% for qty in row.youth_values %}
+                  <td class="{% if loop.last %}tot{% endif %}">{{ qty if qty > 0 else '' }}</td>
+                  {% endfor %}
+                </tr>
+              </table>
+              {% endif %}
+            </div>
+
+            <div class="sec-title">C — Production</div>
+            <div class="sec-pad">
+              <table class="prod-table">
+                <tr>
+                  <th>CUTTING PERSON</th>
+                  <th>CUT DATE</th>
+                </tr>
+                <tr>
+                  <td>{{ row.cutting_person }}</td>
+                  <td>{{ row.cut_date }}</td>
+                </tr>
+              </table>
+            </div>
+          </td>
+
+          <td class="right-col">
+            <div class="image-panel">
+              {% if row.front_image_uri %}
+              <img src="{{ row.front_image_uri }}" alt="Front Image">
+              {% else %}
+              <div class="image-empty">No Front Image</div>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="page">
+    <div class="card">
+      <div class="card-title">Cutting Plan</div>
+      <div class="sec-pad" style="font-size: 10pt;">No production rows</div>
+    </div>
+  </div>
+{% endif %}
+</body>
+</html>

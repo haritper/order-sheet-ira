@@ -1,0 +1,64 @@
+{% extends "pricing/base.html" %}
+{% block title %}Orders | Pricing Intelligence{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header split">
+    <div>
+      <p class="eyebrow">Orders</p>
+      <h2>All orders</h2>
+    </div>
+    <a class="button" href="{{ url_for('pricing.upload_order') }}">Upload New</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Customer</th>
+          <th>Uploaded By</th>
+          <th>Status</th>
+          {% if is_owner %}
+          <th>Suggested</th>
+          <th>Quoted</th>
+          <th>Shipping</th>
+          <th>Duties</th>
+          <th>Action</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in orders %}
+        <tr>
+          <td><a href="{{ url_for('pricing.order_detail', order_id=order.id) }}">{{ order.order_number }}</a></td>
+          <td>{{ order.customer_name or "-" }}</td>
+          <td>{{ order.created_by_username }}</td>
+          <td><span class="badge">{{ order.status }}</span></td>
+          {% if is_owner %}
+          <td>{{ order.suggested_subtotal|usd }}</td>
+          <td>{{ order.quoted_subtotal|usd }}</td>
+          <td>{{ order.shipping_fee|usd }}</td>
+          <td>{{ order.duty_fee|usd }}</td>
+          <td>
+            <form
+              method="post"
+              action="{{ url_for('pricing.delete_order_route', order_id=order.id) }}"
+              onsubmit="return confirm('Delete this order permanently?');"
+            >
+              <input type="hidden" name="pricing_csrf_token" value="{{ pricing_csrf_token }}">
+              <button class="button danger small" type="submit">Delete</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="{{ 9 if is_owner else 4 }}" class="muted">No orders available.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+

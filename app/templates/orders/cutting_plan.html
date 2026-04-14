@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Cutting Plan {{ order.order_id }}{% endblock %}
+{% block content %}
+<section class="page-section">
+  <header class="section-head">
+    <div>
+      <h1>Cutting Plan - {{ order.order_id }}</h1>
+      <p class="muted">Generated from checklist AI quantity-comparison flow</p>
+    </div>
+    <div class="row">
+      {% if has_cutting_plan %}
+      <a class="btn btn-outline" href="{{ url_for('orders.cutting_plan_pdf', order_id=order.id) }}">Download Cutting Plan PDF</a>
+      {% endif %}
+      <a class="btn btn-outline" href="{{ url_for('orders.verify_order', order_id=order.id) }}">Checklist</a>
+      <a class="btn btn-outline" href="{{ url_for('orders.order_detail', order_id=order.id) }}">Back to Order</a>
+    </div>
+  </header>
+
+  {% if cutting_rows %}
+    {% for row in cutting_rows %}
+    {% set display_product = row.source_product_name or row.style or '-' %}
+    {% set display_style = row.style_type_display or row.style or '-' %}
+    <article class="card cp-card">
+      <h2 class="card-title">Production - {{ display_product }}</h2>
+      <div class="grid3">
+        <p><strong>Order ID:</strong> {{ row.order_id or order.order_id }}</p>
+        <p><strong>Style:</strong> {{ display_style }}</p>
+        <p><strong>Fabric:</strong> {{ row.fabric or '-' }}</p>
+        <p><strong>IRA Fabric:</strong> {{ row.ira_fabric_name or '-' }}</p>
+        <p><strong>Colour:</strong> {{ row.colour or '-' }}</p>
+        <p><strong>Pattern:</strong> {{ row.pattern or '-' }}</p>
+        <p><strong>Total Qty:</strong> {{ row.total or 0 }}</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {% for size, _qty in row.sizes.items() %}
+                <th>{{ size }}</th>
+              {% endfor %}
+              <th>TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {% for _size, qty in row.sizes.items() %}
+                <td>{{ qty }}</td>
+              {% endfor %}
+              <td><strong>{{ row.total or 0 }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+    {% endfor %}
+  {% else %}
+    <div class="card subtle">
+      <p>No cutting plan rows yet.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

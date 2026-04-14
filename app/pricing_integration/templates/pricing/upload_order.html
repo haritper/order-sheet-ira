@@ -1,0 +1,21 @@
+{% extends "pricing/base.html" %}
+{% block title %}Upload Order | Pricing Intelligence{% endblock %}
+{% block content %}
+<section class="panel narrow">
+  <div class="panel-header">
+    <p class="eyebrow">Upload</p>
+    <h2>Order sheet intake</h2>
+    <p class="muted">Upload the customer order PDF. The app extracts line items, maps them to the datasheet, and creates a suggested rate.</p>
+  </div>
+  <form method="post" enctype="multipart/form-data" class="stack">
+    <input type="hidden" name="pricing_csrf_token" value="{{ pricing_csrf_token }}">
+    <label>
+      <span>Order sheet PDF</span>
+      <input type="file" name="order_sheet" accept=".pdf,application/pdf" required>
+    </label>
+    <button class="button" type="submit">Upload and Calculate</button>
+  </form>
+</section>
+{% endblock %}
+
+

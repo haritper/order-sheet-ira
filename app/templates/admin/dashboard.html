@@ -1,0 +1,298 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>Admin Dashboard</h1>
+</div>
+
+<style>
+  .admin-dash {
+    display: grid;
+    gap: 14px;
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .kpi-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    padding: 14px;
+  }
+  .kpi-card .label {
+    color: #64748b;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .kpi-card .value {
+    font-size: 30px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+  }
+  .kpi-card .hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .chart-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 14px;
+  }
+  .chart-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .chart-head h3 {
+    margin: 0;
+    font-size: 18px;
+  }
+  .pie-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 14px;
+    align-items: center;
+  }
+  .pie-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pie {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    border: 10px solid #fff;
+    box-shadow: inset 0 0 0 1px #e2e8f0;
+    background: conic-gradient(#e2e8f0 0 360deg);
+  }
+  .legend {
+    display: grid;
+    gap: 8px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #eef2f7;
+    border-radius: 10px;
+    background: #f8fafc;
+    font-size: 14px;
+  }
+  .legend-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #334155;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    display: inline-block;
+  }
+  .legend-value {
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .operator-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .operator-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    padding: 14px;
+  }
+  .operator-card h4 {
+    margin: 0;
+    font-size: 18px;
+    color: #0f172a;
+  }
+  .operator-meta {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .pill {
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 13px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+  .pill b {
+    font-size: 15px;
+    color: #0f172a;
+  }
+  .tone-red { background: #fff1f2; border-color: #fecdd3; }
+  .tone-amber { background: #fffbeb; border-color: #fde68a; }
+  .tone-blue { background: #eff6ff; border-color: #bfdbfe; }
+  .tone-green { background: #ecfdf5; border-color: #bbf7d0; }
+  .tone-slate { background: #f8fafc; border-color: #e2e8f0; }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .charts-grid { grid-template-columns: 1fr; }
+    .operator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 700px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .operator-grid { grid-template-columns: 1fr; }
+    .pie-layout { grid-template-columns: 1fr; }
+    .pie-wrap { justify-content: flex-start; }
+  }
+</style>
+
+<div class="admin-dash">
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="label">Total Orders</div>
+      <div class="value">{{ metrics.total_orders }}</div>
+      <div class="hint">All created orders</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">Total Assigned IDs</div>
+      <div class="value">{{ metrics.total_assignments }}</div>
+      <div class="hint">All operator assignments</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">POD Total</div>
+      <div class="value">{{ metrics.pod_total }}</div>
+      <div class="hint">Customer plan IDs</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">IRA Total</div>
+      <div class="value">{{ metrics.ira_total }}</div>
+      <div class="hint">Production plan IDs</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-head">
+        <h3>POD vs IRA</h3>
+        <span class="muted">Pie</span>
+      </div>
+      <div class="pie-layout">
+        <div class="pie-wrap">
+          <div class="pie" id="podIraPie"></div>
+        </div>
+        <div class="legend" id="podIraLegend"></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-head">
+        <h3>Assignments By Operator</h3>
+        <span class="muted">Pie</span>
+      </div>
+      <div class="pie-layout">
+        <div class="pie-wrap">
+          <div class="pie" id="assignmentsPie"></div>
+        </div>
+        <div class="legend" id="assignmentsLegend"></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-head">
+        <h3>Order Status Distribution</h3>
+        <span class="muted">Pie</span>
+      </div>
+      <div class="pie-layout">
+        <div class="pie-wrap">
+          <div class="pie" id="statusPie"></div>
+        </div>
+        <div class="legend" id="statusLegend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 10px 0;">Operator Performance</h2>
+    <div class="operator-grid">
+      {% for row in operator_cards %}
+      <div class="operator-card">
+        <h4>{{ row.operator_name }}</h4>
+        <div class="operator-meta">
+          <div class="pill tone-blue">Assigned: <b>{{ row.assigned_total }}</b></div>
+          <div class="pill tone-green">Finished: <b>{{ row.assignment_completed }}</b></div>
+          <div class="pill tone-amber">In Progress: <b>{{ row.assignment_in_progress }}</b></div>
+          <div class="pill tone-slate">Pending: <b>{{ row.assignment_pending }}</b></div>
+          <div class="pill tone-blue">Ready: <b>{{ row.order_ready }}</b></div>
+          <div class="pill tone-green">Approved: <b>{{ row.order_approved }}</b></div>
+        </div>
+      </div>
+      {% else %}
+      <div class="operator-card">
+        <h4>No Operators</h4>
+        <p class="muted" style="margin-top:8px;">No operator data available.</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const podIraData = [
+      { label: "POD", value: Number({{ metrics.pod_total | int }}) },
+      { label: "IRA", value: Number({{ metrics.ira_total | int }}) }
+    ];
+    const assignmentData = {{ assignment_distribution | tojson }};
+    const statusData = {{ order_status_distribution | tojson }};
+    const palette = [
+      "#e11d48", "#0ea5e9", "#10b981", "#f59e0b", "#6366f1", "#14b8a6", "#f97316", "#8b5cf6"
+    ];
+
+    function buildPie(pieId, legendId, rows) {
+      const pie = document.getElementById(pieId);
+      const legend = document.getElementById(legendId);
+      if (!pie || !legend) return;
+      const clean = (rows || []).filter((r) => Number(r.value || 0) > 0);
+      const total = clean.reduce((acc, r) => acc + Number(r.value || 0), 0);
+      if (!total) {
+        pie.style.background = "conic-gradient(#e2e8f0 0deg 360deg)";
+        legend.innerHTML = "<div class='legend-item'><span class='legend-name'>No data</span><span class='legend-value'>0</span></div>";
+        return;
+      }
+      let offset = 0;
+      const parts = [];
+      const legendRows = [];
+      clean.forEach((row, idx) => {
+        const value = Number(row.value || 0);
+        const angle = (value / total) * 360;
+        const color = palette[idx % palette.length];
+        parts.push(`${color} ${offset}deg ${offset + angle}deg`);
+        offset += angle;
+        legendRows.push(
+          `<div class="legend-item"><span class="legend-name"><span class="dot" style="background:${color};"></span>${row.label}</span><span class="legend-value">${value}</span></div>`
+        );
+      });
+      pie.style.background = `conic-gradient(${parts.join(", ")})`;
+      legend.innerHTML = legendRows.join("");
+    }
+
+    buildPie("podIraPie", "podIraLegend", podIraData);
+    buildPie("assignmentsPie", "assignmentsLegend", assignmentData);
+    buildPie("statusPie", "statusLegend", statusData);
+  })();
+</script>
+{% endblock %}

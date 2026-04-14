@@ -1,0 +1,1173 @@
+{% extends 'base.html' %}
+{% block title %}Edit {{ order.order_id }}{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>Edit {{ order.order_id }}</h1>
+</div>
+<p class="muted">Status: <strong>{{ order.status }}</strong></p>
+<div class="steps">
+  <a href="{{ url_for('orders.edit_order', order_id=order.id, step=1) }}" class="{% if step == 1 %}active{% endif %}">Step 1</a>
+  <a href="{{ url_for('orders.edit_order', order_id=order.id, step=2) }}" class="{% if step == 2 %}active{% endif %}">Step 2</a>
+  <a href="{{ url_for('orders.edit_order', order_id=order.id, step=3) }}" class="{% if step == 3 %}active{% endif %}">Step 3</a>
+  <a href="{{ url_for('orders.edit_order', order_id=order.id, step=4) }}" class="{% if step == 4 %}active{% endif %}">Step 4</a>
+</div>
+
+{% if step == 1 %}
+<form method="post" class="card grid2">
+  {{ step1_form.hidden_tag() }}
+  <input type="hidden" name="step" value="1">
+  {% if show_assignment_dropdown %}
+    {{ step1_form.order_id(type='hidden') }}
+    <label>Assigned Order ID
+      <select name="assigned_order_id" id="assigned-order-id-select" required>
+        <option value="">Select assigned order</option>
+        {% for option in assignment_choices %}
+          <option value="{{ option.id }}" data-order-code="{{ option.order_code }}" {% if selected_assignment_id and option.id == selected_assignment_id %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Order ID <input type="text" id="order-id-display" value="{{ order_id_display_value }}" readonly></label>
+  {% else %}
+    <label>Order ID {{ step1_form.order_id }}</label>
+  {% endif %}
+  <label>Enquiry Date {{ step1_form.enquiry_date }}</label>
+  <label>Submission ID {{ step1_form.submission_id }}</label>
+  <label>Confirmed On {{ step1_form.confirmed_on }}</label>
+  <label>Customer Name {{ step1_form.customer_name }}</label>
+  <label>Mobile {{ step1_form.mobile }}</label>
+  <!-- <label class="full">Shipping Address {{ step1_form.shipping_address }}</label>
+  <label>City {{ step1_form.city }}</label>
+  <label>ZIP Code {{ step1_form.zip_code }}</label>
+  <label>State {{ step1_form.state }}</label>
+  <label>Country {{ step1_form.country }}</label> -->
+  {{ step1_form.submit(class_='btn') }}
+</form>
+{% if show_assignment_dropdown %}
+<script>
+  (function () {
+    const select = document.getElementById('assigned-order-id-select');
+    const display = document.getElementById('order-id-display');
+    if (!select || !display) return;
+    function syncOrderId() {
+      const option = select.options[select.selectedIndex];
+      const code = (option && option.getAttribute('data-order-code')) || '';
+      if (code) display.value = code;
+    }
+    select.addEventListener('change', syncOrderId);
+    syncOrderId();
+  })();
+</script>
+{% endif %}
+{% endif %}
+
+{% if step == 2 %}
+<form method="post" action="{{ url_for('orders.add_config', order_id=order.id) }}" class="card" enctype="multipart/form-data" id="config-form">
+  <h2>Add Product Configuration (No Counts)</h2>
+  <p class="muted" style="margin-bottom:12px;">Configure each selected product one-by-one with images, logo positions and production notes.</p>
+  <div class="grid4">
+    <label>Product
+      <select name="product_name" id="product-name" required>
+        <option value="">Select product</option>
+        {% for product in product_catalog %}
+          <option value="{{ product }}">{{ product }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Gender
+      <select name="gender" id="gender-select" required>
+        <option>MENS</option>
+        <option>WOMENS</option>
+        <option>YOUTH</option>
+        <!-- <option>UNISEX</option> -->
+      </select>
+    </label>
+    <label id="jacket-type-wrap" style="display:none;">Type
+      <select name="jacket_type" id="jacket-type-select">
+        <option value="Full Zipper">Full Zipper</option>
+        <option value="Quater Zipper">Quater Zipper</option>
+      </select>
+    </label>
+    <label id="hoodie-type-wrap" style="display:none;">Type
+      <select name="hoodie_type" id="hoodie-type-select">
+        <option value="Hoodie">Hoodie</option>
+        <option value="Zipped Hoodie">Zipped Hoodie</option>
+      </select>
+    </label>
+    <label id="sleeve-type-label">Sleeve Type
+      <select name="sleeve_type" id="sleeve-type-select">
+        <option>HALF</option>
+        <option>FULL</option>
+        <option>3/4 TH</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="card subtle">
+    <label style="margin:0;">
+      <input type="checkbox" name="apply_same_design_all_genders" id="apply-same-design-check">
+      Use same design for multiple genders (common jersey design)
+    </label>
+    <div id="apply-genders-wrap" class="grid3" style="display:none; margin-top:10px;">
+      <label id="apply-gender-slot-1"><input type="checkbox" name="apply_gender_targets" value="MENS" id="apply-gender-mens"> <span id="apply-gender-mens-text">MENS</span></label>
+      <label id="apply-gender-slot-2"><input type="checkbox" name="apply_gender_targets" value="WOMENS" id="apply-gender-womens"> <span id="apply-gender-womens-text">WOMENS</span></label>
+      <label id="apply-gender-slot-3"><input type="checkbox" name="apply_gender_targets" value="YOUTH" id="apply-gender-youth"> <span id="apply-gender-youth-text">YOUTH</span></label>
+    </div>
+  </div>
+  <div class="card subtle" id="apply-sleeves-card">
+    <label style="margin:0;">
+      <input type="checkbox" name="apply_same_design_all_sleeves" id="apply-same-sleeve-check">
+      Use same design for multiple sleeve types
+    </label>
+    <div id="apply-sleeves-wrap" class="grid3" style="display:none; margin-top:10px;">
+      <label><input type="checkbox" name="apply_sleeve_targets" value="HALF" id="apply-sleeve-half"> HALF</label>
+      <label><input type="checkbox" name="apply_sleeve_targets" value="FULL" id="apply-sleeve-full"> FULL</label>
+      <label><input type="checkbox" name="apply_sleeve_targets" value="3/4 TH" id="apply-sleeve-34"> 3/4 TH</label>
+    </div>
+  </div>
+
+  <h3>Product Images</h3>
+  <div class="grid4">
+    <label id="front-image-wrap">Front Image
+      <button type="button" id="front-image-btn" class="btn btn-outline">Upload Front Image</button>
+      <div id="front-image-name" class="muted" style="margin-top:6px;">No file chosen</div>
+      <input type="file" name="front_image" id="front-image" accept="image/*" required style="display:none;">
+    </label>
+    <label id="right-image-wrap">Right Image
+      <button type="button" id="right-image-btn" class="btn btn-outline">Upload Right Image</button>
+      <div id="right-image-name" class="muted" style="margin-top:6px;">No file chosen</div>
+      <input type="file" name="right_image" id="right-image" accept="image/*" required style="display:none;">
+    </label>
+    <label id="back-image-wrap">Back Image
+      <button type="button" id="back-image-btn" class="btn btn-outline">Upload Back Image</button>
+      <div id="back-image-name" class="muted" style="margin-top:6px;">No file chosen</div>
+      <input type="file" name="back_image" id="back-image" accept="image/*" required style="display:none;">
+    </label>
+    <label id="left-image-wrap">Left Image
+      <button type="button" id="left-image-btn" class="btn btn-outline">Upload Left Image</button>
+      <div id="left-image-name" class="muted" style="margin-top:6px;">No file chosen</div>
+      <input type="file" name="left_image" id="left-image" accept="image/*" required style="display:none;">
+    </label>
+  </div>
+
+  <div id="logo-config" style="display:none;">
+    <h3>Logo Positions (show after front image upload)</h3>
+    <div class="grid2">
+      <label><input type="checkbox" name="logo_positions" value="right" id="logo-right-check"> Logo at Right</label>
+      <label><input type="checkbox" name="logo_positions" value="left" id="logo-left-check"> Logo at Left</label>
+    </div>
+
+    <div class="grid2" id="logo-upload-grid">
+      <label id="logo-right-field" style="display:none;">Right Logo File <input type="file" name="logo_right" accept="image/*"></label>
+      <label id="logo-left-field" style="display:none;">Left Logo File <input type="file" name="logo_left" accept="image/*"></label>
+    </div>
+  </div>
+
+  <div id="logo-popup" class="card subtle" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.45);">
+    <div id="logo-popup-card" style="max-width:760px; margin:60px auto; background:#fff; border-radius:12px; padding:16px; position:relative;">
+      <button type="button" id="logo-popup-close-icon" aria-label="Close" style="position:absolute; top:10px; right:12px; width:28px; height:28px; border:none; background:transparent; color:#b10f1f; font-size:22px; line-height:1; cursor:pointer; z-index:2;">X</button>
+      <div style="display:block; padding-right:40px;">
+        <h3 id="logo-popup-title" style="margin:0;">Upload Logos</h3>
+      </div>
+      <p class="muted" style="margin-bottom:12px;">First upload image, then select required logos and upload files.</p>
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px;">
+        <button type="button" id="logo-popup-image-upload" class="btn btn-outline">Upload Image</button>
+        <span id="logo-popup-image-status" class="muted">No image uploaded</span>
+      </div>
+      <div id="logo-popup-list" class="grid2"></div>
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+        <button type="button" id="logo-popup-save" class="btn" style="background:#ef9aa2; border-color:#ef9aa2; color:#fff; transition:background .15s,border-color .15s;" disabled>Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <label id="style-number-wrap">Style #
+      <input name="style_number" id="style-number-input">
+      <select name="style_number" id="style-number-select" style="display:none;" disabled>
+        <option value="">Select Style #</option>
+      </select>
+    </label>
+    <label id="style-type-wrap">Style Type
+      <input name="style_type" id="style-type-input">
+      <select name="style_type" id="style-type-select" style="display:none;" disabled>
+        <option value="">Select Style Type</option>
+      </select>
+    </label>
+    <label id="fabric-wrap">Fabric
+      <input name="fabric" id="fabric-input">
+      <select name="fabric" id="fabric-select" style="display:none;" disabled>
+        <option value="">Select Fabric</option>
+      </select>
+    </label>
+    <label id="primary-color-wrap">Primary Color
+      <input name="panel_color_primary" id="panel-color-primary">
+      <select name="panel_color_primary" id="panel-color-primary-select" style="display:none;" disabled>
+        <option value="">Select Primary Color</option>
+      </select>
+    </label>
+    <label id="secondary-color-wrap">Secondary Color <input name="panel_color_secondary" id="panel-color-secondary"></label>
+  </div>
+
+  <div class="grid2">
+    <label>Design Notes<textarea name="design_notes"></textarea></label>
+    <label>Production Notes<textarea name="production_notes"></textarea></label>
+  </div>
+
+  <button class="btn" type="submit">Add Configuration</button>
+</form>
+
+<div class="card">
+  <h2>Configured Products Table</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Product</th><th>Gender</th><th>Sleeve/Type</th><th>Front</th><th>Right</th><th>Back</th><th>Left</th><th>Logo Positions</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in order.items %}
+        {% set spec = item.branding_spec %}
+        <tr>
+          <td>{{ item.product_name }}</td>
+          <td>{{ item.gender }}</td>
+          <td>{{ item.sleeve_type }}</td>
+          <td>{{ 'Yes' if spec and spec.front_image_path else 'No' }}</td>
+          <td>{{ 'Yes' if spec and spec.right_image_path else 'No' }}</td>
+          <td>{{ 'Yes' if spec and spec.back_image_path else 'No' }}</td>
+          <td>{{ 'Yes' if spec and spec.left_image_path else 'No' }}</td>
+          <td>{{ spec.logo_positions if spec else '' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('orders.delete_config', order_id=order.id, item_id=item.id) }}">
+              <button type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9">No configurations added yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <a class="btn" href="{{ url_for('orders.edit_order', order_id=order.id, step=3) }}">Continue to Roster</a>
+</div>
+
+<script>
+  const configForm = document.getElementById('config-form');
+  const frontImage = document.getElementById('front-image');
+  const rightImage = document.getElementById('right-image');
+  const backImage = document.getElementById('back-image');
+  const leftImage = document.getElementById('left-image');
+  const frontImageBtn = document.getElementById('front-image-btn');
+  const rightImageBtn = document.getElementById('right-image-btn');
+  const backImageBtn = document.getElementById('back-image-btn');
+  const leftImageBtn = document.getElementById('left-image-btn');
+  const frontImageWrap = document.getElementById('front-image-wrap');
+  const rightImageWrap = document.getElementById('right-image-wrap');
+  const backImageWrap = document.getElementById('back-image-wrap');
+  const leftImageWrap = document.getElementById('left-image-wrap');
+  const frontImageName = document.getElementById('front-image-name');
+  const rightImageName = document.getElementById('right-image-name');
+  const backImageName = document.getElementById('back-image-name');
+  const leftImageName = document.getElementById('left-image-name');
+  const productName = document.getElementById('product-name');
+  const genderSelect = document.getElementById('gender-select');
+  const sleeveTypeLabel = document.getElementById('sleeve-type-label');
+  const sleeveTypeSelect = document.getElementById('sleeve-type-select');
+  const applySameDesignCheck = document.getElementById('apply-same-design-check');
+  const applyGendersWrap = document.getElementById('apply-genders-wrap');
+  const applyGenderSlot1 = document.getElementById('apply-gender-slot-1');
+  const applyGenderSlot2 = document.getElementById('apply-gender-slot-2');
+  const applyGenderSlot3 = document.getElementById('apply-gender-slot-3');
+  const applyGenderMens = document.getElementById('apply-gender-mens');
+  const applyGenderMensText = document.getElementById('apply-gender-mens-text');
+  const applyGenderWomens = document.getElementById('apply-gender-womens');
+  const applyGenderWomensText = document.getElementById('apply-gender-womens-text');
+  const applyGenderYouth = document.getElementById('apply-gender-youth');
+  const applyGenderYouthText = document.getElementById('apply-gender-youth-text');
+  const applySleevesCard = document.getElementById('apply-sleeves-card');
+  const applySameSleeveCheck = document.getElementById('apply-same-sleeve-check');
+  const applySleevesWrap = document.getElementById('apply-sleeves-wrap');
+  const applySleeveHalf = document.getElementById('apply-sleeve-half');
+  const applySleeveFull = document.getElementById('apply-sleeve-full');
+  const applySleeve34 = document.getElementById('apply-sleeve-34');
+  const logoConfig = document.getElementById('logo-config');
+  const rightCheck = document.getElementById('logo-right-check');
+  const leftCheck = document.getElementById('logo-left-check');
+  const rightField = document.getElementById('logo-right-field');
+  const leftField = document.getElementById('logo-left-field');
+  const styleNumberWrap = document.getElementById('style-number-wrap');
+  const styleNumberInput = document.getElementById('style-number-input');
+  const styleNumberSelect = document.getElementById('style-number-select');
+  const styleTypeWrap = document.getElementById('style-type-wrap');
+  const fabricWrap = document.getElementById('fabric-wrap');
+  const styleTypeInput = document.getElementById('style-type-input');
+  const styleTypeSelect = document.getElementById('style-type-select');
+  const jacketTypeWrap = document.getElementById('jacket-type-wrap');
+  const jacketTypeSelect = document.getElementById('jacket-type-select');
+  const hoodieTypeWrap = document.getElementById('hoodie-type-wrap');
+  const hoodieTypeSelect = document.getElementById('hoodie-type-select');
+  const fabricInput = document.getElementById('fabric-input');
+  const fabricSelect = document.getElementById('fabric-select');
+  const primaryColorWrap = document.getElementById('primary-color-wrap');
+  const secondaryColorWrap = document.getElementById('secondary-color-wrap');
+  const primaryColorInput = document.getElementById('panel-color-primary');
+  const primaryColorSelect = document.getElementById('panel-color-primary-select');
+  const secondaryColorInput = document.getElementById('panel-color-secondary');
+  const logoPopup = document.getElementById('logo-popup');
+  const logoPopupTitle = document.getElementById('logo-popup-title');
+  const logoPopupList = document.getElementById('logo-popup-list');
+  const logoPopupSave = document.getElementById('logo-popup-save');
+  const logoPopupCloseIcon = document.getElementById('logo-popup-close-icon');
+  const logoPopupImageUpload = document.getElementById('logo-popup-image-upload');
+  const logoPopupImageStatus = document.getElementById('logo-popup-image-status');
+  const FRONT_ONLY_LOGO_PRODUCTS = new Set(['trousers', 'shorts', 'cricket whites pant', 'travel tousers', 'travel trousers']);
+  const CAP_BAGGY_PRODUCTS = new Set(['cap', 'baggy cap']);
+  const FRONT_ONLY_ACCESSORY_PRODUCTS = new Set(['hat', 'helmat clad', 'helmet clad', 'pad clad']);
+  const FRONT_BACK_ONLY_PRODUCTS = new Set(['sleeveless jackets', 'sleeveless singlet']);
+  const SIDE_LOGO_SLOT_IDS = new Set([
+    'front_front_side_logo',
+    'front_right_side_logo',
+    'front_left_side_logo',
+    'right_side_logo',
+    'left_side_logo',
+  ]);
+  const LOGO_SLOT_MAP = {
+    front: [
+      { id: 'front_left_chest_logo', label: 'Left Chest Logo' },
+      { id: 'front_right_chest_logo', label: 'Right Chest Logo' },
+      { id: 'front_sponser_logo', label: 'Sponser Logo' },
+      { id: 'front_front_side_logo', label: 'Front Side Logo' },
+      { id: 'front_right_side_logo', label: 'Right Side Logo' },
+      { id: 'front_left_side_logo', label: 'Left Side Logo' },
+    ],
+    right: [
+      { id: 'right_up_logo', label: 'Right Up' },
+      { id: 'right_down_logo', label: 'Right Down' },
+      { id: 'right_side_logo', label: 'Right Side Logo' },
+    ],
+    left: [
+      { id: 'left_up_logo', label: 'Left Up' },
+      { id: 'left_down_logo', label: 'Left Down' },
+      { id: 'left_side_logo', label: 'Left Side Logo' },
+    ],
+    back: [
+      { id: 'back_flag_logo', label: 'Flag Logo' },
+      { id: 'back_logo', label: 'Logo' },
+      { id: 'back_bottom_logo', label: 'Bottom Logo' },
+    ],
+  };
+  let currentLogoView = '';
+  let currentAllowedLogoSlots = [];
+  const IMAGE_INPUTS = {
+    front: frontImage,
+    right: rightImage,
+    back: backImage,
+    left: leftImage,
+  };
+  const IMAGE_LABELS = {
+    front: frontImageName,
+    right: rightImageName,
+    back: backImageName,
+    left: leftImageName,
+  };
+  const IMAGE_WRAPPERS = {
+    front: frontImageWrap,
+    right: rightImageWrap,
+    back: backImageWrap,
+    left: leftImageWrap,
+  };
+  const FIT_PRODUCTS = new Set(['trousers', 'shorts', 'travel tousers', 'travel trousers', 'cricket whites pant', 'cricket white pant']);
+  const TYPELESS_PRODUCTS = new Set(['cap', 'baggy cap', 'hat', 'pad clad', 'helmat clad', 'helmet clad', 'sleeveless', 'sleeveless singlet', 'sleeve singlet']);
+  const POLO_TYPE_PRODUCTS = new Set(['polo', 'travel polo']);
+  const JACKET_PRODUCTS = new Set(['jacket', 'jackets', 'sleeveless jackets']);
+  const JACKET_TYPE_PRODUCTS = new Set(['jacket', 'jackets']);
+  const HOODIE_TYPE_PRODUCTS = new Set(['hoodies']);
+  const HIDE_SLEEVE_PRODUCTS = new Set(['trousers', 'shorts', 'travel tousers', 'travel trousers', 'jacket', 'jackets', 'sleeveless jackets', 'hoodies', 'cap', 'baggy cap', 'hat', 'helmat clad', 'helmet clad', 'pad clad', 'sleeveless singlet', 'sleeve singlet']);
+  const NO_PRIMARY_SECONDARY_PRODUCTS = new Set(['playing jersey', 'training jersey']);
+  const JERSEY_STYLE_OPTIONS = ['POLO', 'ZIPUP', 'MANDARIN', 'INSERT', 'RIB', 'ROUND'];
+  const JERSEY_FABRIC_OPTIONS = ['INTERLOCK 160 GSM', 'JACQUARD', 'PIN MESH'];
+  const TROUSER_STYLE_OPTIONS = ['PLAIN', 'TOP', 'BOTTOM', 'TOP&BOTTOM', 'PIPING', 'KNEE PANEL'];
+  const TROUSER_FABRIC_OPTIONS = ['CORSA 220 GSM'];
+  const SHORTS_PRODUCTS = new Set(['shorts']);
+  const SHORTS_STYLE_OPTIONS = ['PLAIN', 'PIPING', 'MIDDLE', 'FULL'];
+  const SHORTS_FABRIC_OPTIONS = ['NS LYCRA', 'OTTOMAN', 'SALINA 180 GSM'];
+  const TRAVEL_TROUSER_PRODUCTS = new Set(['travel tousers', 'travel trousers']);
+  const HOODIE_PRODUCTS = new Set(['hoodies', 'zipped hoodie']);
+  const SLEEVELESS_SINGLET_PRODUCTS = new Set(['sleeveless singlet']);
+  const BASE_ACCENT_PRODUCTS = new Set(['jacket', 'jackets', 'hoodies', 'zipped hoodie']);
+  const CAP_PRODUCTS = new Set(['cap', 'baggy cap']);
+  const HAT_PRODUCTS = new Set(['hat']);
+  const HELMET_CLAD_PRODUCTS = new Set(['helmat clad', 'helmet clad']);
+  const PAD_CLAD_PRODUCTS = new Set(['pad clad']);
+  const HIDE_STYLE_TYPE_PRODUCTS = new Set([]);
+  const ADULT_YOUTH_GENDER_PRODUCTS = new Set(['cap', 'baggy cap', 'hat', 'helmat clad', 'helmet clad', 'pad clad', 'plad clad']);
+  const CRICKET_WHITES_PANT_PRODUCTS = new Set(['cricket whites pant', 'cricket white pant']);
+  const TRAVEL_TROUSER_FABRIC_OPTIONS = ['SCUBA 330 GSM'];
+  const TROUSER_PRIMARY_COLOR_OPTIONS = ['BLACK', 'NAVY', 'MEROON', 'ROYAL BLUE', 'RED', 'SKY BLUE', 'INDIAN BLUE', 'ORANGE', 'WHITE', 'GREY', 'YELLOW', 'GREEN', 'PINK'];
+  const CRICKET_WHITES_PANT_PRIMARY_COLOR_OPTIONS = ['WHITE', 'OFF WHITE'];
+  const JACKET_STYLE_NUMBER_OPTIONS = ['001', '002', '003', '004', '005', '006', '007'];
+  const HOODIE_STYLE_NUMBER_OPTIONS = ['001', '002'];
+  const ZIPPED_HOODIE_STYLE_NUMBER_OPTIONS = ['001', '002', '003'];
+  const SLEEVELESS_SINGLET_STYLE_NUMBER_OPTIONS = ['001', '002', '003'];
+  const CAP_STYLE_NUMBER_OPTIONS = ['001', '002'];
+  const SINGLE_STYLE_NUMBER_PRODUCTS = new Set(['baggy cap', 'hat', 'helmat clad', 'helmet clad', 'pad clad']);
+  const JACKET_FABRIC_OPTIONS = ['SCUBA 330 GSM'];
+  const FULL_ZIPPER_STYLE_OPTIONS = ['Contrast Raglan Sleeve', 'Edge Trim', 'Prime Solid', 'Angled Chest', 'Accent Panel', 'Chest Line'];
+  const ZIPPED_HOODIE_STYLE_OPTIONS = ['Edge Trim', 'Accent Tip', 'Prime Solid'];
+  const SLEEVELESS_SINGLET_STYLE_TYPE_OPTIONS = ['Clean Solid', 'Power Print', 'Motion Weave'];
+  const HOODIE_FABRIC_OPTIONS = ['SCUBA 330 GSM', 'SCUBA TERRY', 'FLEECE'];
+  const CAP_HAT_FABRIC_OPTIONS = ['CORD SANWICH', 'TAIWAN SANWICH', 'RIB STAPE'];
+  const CAP_HAT_STYLE_TYPE_OPTIONS = ['EMBROIDERY', 'STICKER'];
+  const HELMET_PAD_STYLE_TYPE_OPTIONS = ['STICKER'];
+  const HELMET_CLAD_FABRIC_OPTIONS = ['INTERLOCK 160 GSM'];
+  const PAD_CLAD_FABRIC_OPTIONS = ['LYCRA'];
+
+  function normalizedProductKey() {
+    return (productName.value || '').trim().toLowerCase();
+  }
+
+  function toggleLogoConfig() {
+    logoConfig.style.display = frontImage.files.length > 0 ? 'block' : 'none';
+  }
+
+  function toggleLogoUploads() {
+    rightField.style.display = rightCheck.checked ? 'block' : 'none';
+    leftField.style.display = leftCheck.checked ? 'block' : 'none';
+  }
+
+  function setSelectOptions(selectEl, placeholder, options) {
+    const optionTags = [`<option value="">${placeholder}</option>`]
+      .concat(options.map((o) => `<option value="${o}">${o}</option>`));
+    selectEl.innerHTML = optionTags.join('');
+  }
+
+  function buildLogoPopupRows() {
+    const rows = [];
+    Object.entries(LOGO_SLOT_MAP).forEach(([view, slots]) => {
+      slots.forEach((slot) => {
+        rows.push(`
+          <label data-logo-view="${view}" data-logo-slot="${slot.id}" style="display:none;">
+            <div style="display:grid; grid-template-columns: auto 1fr; gap:10px; align-items:center;">
+              <input type="checkbox" name="logo_slot" value="${slot.id}" data-logo-check="${slot.id}">
+              <div>
+                <div>${slot.label}</div>
+                <input type="file" name="logo_file_${slot.id}" data-logo-file="${slot.id}" accept="image/*" style="display:none; margin-top:6px;">
+              </div>
+            </div>
+          </label>
+        `);
+      });
+    });
+    logoPopupList.innerHTML = rows.join('');
+  }
+
+  function clearAllLogoSelections() {
+    Array.from(logoPopupList.querySelectorAll('input[type="checkbox"]')).forEach((el) => {
+      el.checked = false;
+    });
+    Array.from(logoPopupList.querySelectorAll('input[type="file"]')).forEach((el) => {
+      el.value = '';
+      el.style.display = 'none';
+    });
+  }
+
+  function getRequiredImageViewsForProduct() {
+    const key = normalizedProductKey();
+    if (FRONT_ONLY_ACCESSORY_PRODUCTS.has(key)) return ['front'];
+    if (FRONT_BACK_ONLY_PRODUCTS.has(key)) return ['front', 'back'];
+    if (CAP_BAGGY_PRODUCTS.has(key)) return ['front', 'right', 'left'];
+    return ['front', 'right', 'back', 'left'];
+  }
+
+  function updateImageUploadOptions() {
+    const requiredViews = new Set(getRequiredImageViewsForProduct());
+    ['front', 'right', 'back', 'left'].forEach((view) => {
+      const wrap = IMAGE_WRAPPERS[view];
+      const input = IMAGE_INPUTS[view];
+      const visible = requiredViews.has(view);
+      if (wrap) wrap.style.display = visible ? 'block' : 'none';
+      if (input) input.required = visible;
+      if (!visible && input) {
+        input.value = '';
+        updateImageLabel(view);
+      }
+    });
+    clearAllLogoSelections();
+  }
+
+  function getRowsForView(view) {
+    return Array.from(logoPopupList.querySelectorAll(`[data-logo-view="${view}"]`))
+      .filter((row) => currentAllowedLogoSlots.includes(row.getAttribute('data-logo-slot')));
+  }
+
+  function updateLogoPopupState() {
+    if (!currentLogoView) return;
+    const rows = getRowsForView(currentLogoView);
+    const imageInput = IMAGE_INPUTS[currentLogoView];
+    const imageReady = !!(imageInput && imageInput.files && imageInput.files.length > 0);
+    logoPopupImageStatus.textContent = imageReady ? imageInput.files[0].name : 'No image uploaded';
+    let checkedCount = 0;
+    let allCheckedHaveFile = true;
+    rows.forEach((row) => {
+      const check = row.querySelector('input[type="checkbox"]');
+      const fileInput = row.querySelector('input[type="file"]');
+      row.style.display = imageReady ? 'block' : 'none';
+      check.disabled = !imageReady;
+      fileInput.style.display = (imageReady && check.checked) ? 'block' : 'none';
+      if (check.checked) {
+        checkedCount += 1;
+        if (!fileInput.files || fileInput.files.length === 0) {
+          allCheckedHaveFile = false;
+        }
+      }
+    });
+    logoPopupSave.disabled = !(imageReady && (checkedCount === 0 || allCheckedHaveFile));
+    if (logoPopupSave.disabled) {
+      logoPopupSave.style.background = '#ef9aa2';
+      logoPopupSave.style.borderColor = '#ef9aa2';
+    } else {
+      logoPopupSave.style.background = '#b10f1f';
+      logoPopupSave.style.borderColor = '#b10f1f';
+    }
+  }
+
+  function openLogoPopup(view) {
+    currentLogoView = view;
+    const key = normalizedProductKey();
+    if (CAP_BAGGY_PRODUCTS.has(key)) {
+      if (view === 'front') currentAllowedLogoSlots = ['front_front_side_logo'];
+      else if (view === 'right') currentAllowedLogoSlots = ['right_side_logo'];
+      else if (view === 'left') currentAllowedLogoSlots = ['left_side_logo'];
+      else currentAllowedLogoSlots = [];
+    } else if (FRONT_ONLY_ACCESSORY_PRODUCTS.has(key)) {
+      currentAllowedLogoSlots = view === 'front' ? ['front_front_side_logo'] : [];
+    } else if (FRONT_ONLY_LOGO_PRODUCTS.has(key)) {
+      currentAllowedLogoSlots = view === 'front'
+        ? ['front_right_side_logo', 'front_left_side_logo']
+        : [];
+    } else {
+      currentAllowedLogoSlots = (LOGO_SLOT_MAP[view] || [])
+        .map((slot) => slot.id)
+        .filter((slotId) => !SIDE_LOGO_SLOT_IDS.has(slotId));
+    }
+    logoPopupTitle.textContent = `Upload Logos for ${view[0].toUpperCase()}${view.slice(1)} Image`;
+    Array.from(logoPopupList.querySelectorAll('[data-logo-view]')).forEach((row) => {
+      const rowView = row.getAttribute('data-logo-view');
+      const slotId = row.getAttribute('data-logo-slot');
+      const isVisible = rowView === view && currentAllowedLogoSlots.includes(slotId);
+      row.style.display = isVisible ? 'block' : 'none';
+    });
+    updateLogoPopupState();
+    logoPopup.style.display = 'block';
+  }
+
+  function closeLogoPopup() {
+    logoPopup.style.display = 'none';
+    currentLogoView = '';
+  }
+
+  function updateImageLabel(view) {
+    const input = IMAGE_INPUTS[view];
+    const label = IMAGE_LABELS[view];
+    if (!input || !label) return;
+    label.textContent = (input.files && input.files.length > 0) ? input.files[0].name : 'No file chosen';
+  }
+
+  function getRealSelectValues(selectEl) {
+    return Array.from(selectEl.options)
+      .map((opt) => String(opt.value || '').trim())
+      .filter((v) => v !== '');
+  }
+
+  function applySingleOptionAsInput(selectEl, inputEl) {
+    const values = getRealSelectValues(selectEl);
+    if (values.length !== 1) return false;
+    inputEl.style.display = 'block';
+    inputEl.disabled = false;
+    inputEl.readOnly = true;
+    inputEl.value = values[0];
+    selectEl.style.display = 'none';
+    selectEl.disabled = true;
+    selectEl.value = '';
+    return true;
+  }
+
+  function updateGenderOptions() {
+    const key = normalizedProductKey();
+    const current = (genderSelect.value || '').toUpperCase();
+    if (ADULT_YOUTH_GENDER_PRODUCTS.has(key)) {
+      genderSelect.innerHTML = '<option>ADULT</option><option>YOUTH</option>';
+      genderSelect.value = current === 'YOUTH' ? 'YOUTH' : 'ADULT';
+      return;
+    }
+    genderSelect.innerHTML = '<option>MENS</option><option>WOMENS</option><option>YOUTH</option>';
+    if (current === 'WOMENS' || current === 'YOUTH') {
+      genderSelect.value = current;
+    } else {
+      genderSelect.value = 'MENS';
+    }
+  }
+
+  function updateTypeFieldBehavior() {
+    const key = normalizedProductKey();
+    if (key === 'training jersey') {
+      sleeveTypeLabel.style.display = 'none';
+      sleeveTypeSelect.innerHTML = '<option>HALF</option>';
+      sleeveTypeSelect.value = 'HALF';
+      sleeveTypeSelect.required = false;
+      sleeveTypeSelect.disabled = true;
+      return;
+    }
+    if (CRICKET_WHITES_PANT_PRODUCTS.has(key)) {
+      sleeveTypeLabel.style.display = 'none';
+      sleeveTypeSelect.innerHTML = '<option value="">Not Required</option>';
+      sleeveTypeSelect.value = '';
+      sleeveTypeSelect.required = false;
+      sleeveTypeSelect.disabled = true;
+      return;
+    }
+    if (HIDE_SLEEVE_PRODUCTS.has(key)) {
+      sleeveTypeLabel.style.display = 'none';
+      sleeveTypeSelect.innerHTML = '<option value="">Not Required</option>';
+      sleeveTypeSelect.value = '';
+      sleeveTypeSelect.required = false;
+      sleeveTypeSelect.disabled = true;
+      return;
+    }
+
+    sleeveTypeLabel.style.display = 'grid';
+    if (TYPELESS_PRODUCTS.has(key)) {
+      sleeveTypeLabel.childNodes[0].nodeValue = 'Type';
+      sleeveTypeSelect.innerHTML = '<option value="">Not Required</option>';
+      sleeveTypeSelect.value = '';
+      sleeveTypeSelect.required = false;
+      sleeveTypeSelect.disabled = true;
+      return;
+    }
+
+    sleeveTypeSelect.disabled = false;
+    if (POLO_TYPE_PRODUCTS.has(key)) {
+      sleeveTypeLabel.childNodes[0].nodeValue = 'Type';
+      sleeveTypeSelect.innerHTML = '<option>Travel polo</option><option>Mangement polo</option><option>Coach Polo</option>';
+      sleeveTypeSelect.required = true;
+      return;
+    }
+    if (JACKET_PRODUCTS.has(key)) {
+      sleeveTypeLabel.childNodes[0].nodeValue = 'Sleeve Type';
+      sleeveTypeSelect.innerHTML = '<option>FULL</option>';
+      sleeveTypeSelect.required = true;
+      return;
+    }
+    if (FIT_PRODUCTS.has(key)) {
+      sleeveTypeLabel.childNodes[0].nodeValue = 'Type';
+      sleeveTypeSelect.innerHTML = '<option>GENERAL</option><option>SLIM</option><option>REGULAR</option>';
+      sleeveTypeSelect.required = true;
+      return;
+    }
+
+    sleeveTypeLabel.childNodes[0].nodeValue = 'Sleeve Type';
+    sleeveTypeSelect.innerHTML = '<option>HALF</option><option>FULL</option><option>3/4 TH</option>';
+    sleeveTypeSelect.required = true;
+  }
+
+  function updateApplyGenderOptions() {
+    applyGendersWrap.style.display = applySameDesignCheck.checked ? 'grid' : 'none';
+    const options = Array.from(genderSelect.options).map((opt) => String(opt.value || '').trim()).filter(Boolean);
+    const slots = [
+      { wrap: applyGenderSlot1, input: applyGenderMens, text: applyGenderMensText },
+      { wrap: applyGenderSlot2, input: applyGenderWomens, text: applyGenderWomensText },
+      { wrap: applyGenderSlot3, input: applyGenderYouth, text: applyGenderYouthText },
+    ];
+    slots.forEach((slot, idx) => {
+      const value = options[idx] || '';
+      if (!value) {
+        slot.wrap.style.display = 'none';
+        slot.input.checked = false;
+        return;
+      }
+      slot.wrap.style.display = 'block';
+      slot.input.value = value;
+      slot.text.textContent = value;
+    });
+    if (applySameDesignCheck.checked) {
+      slots.forEach((slot) => {
+        if (slot.wrap.style.display !== 'none') slot.input.checked = true;
+      });
+    }
+  }
+
+  function isSleeveModeProduct() {
+    const key = normalizedProductKey();
+    if (key === 'training jersey') return false;
+    if (CRICKET_WHITES_PANT_PRODUCTS.has(key)) return false;
+    if (HIDE_SLEEVE_PRODUCTS.has(key)) return false;
+    if (TYPELESS_PRODUCTS.has(key)) return false;
+    if (POLO_TYPE_PRODUCTS.has(key)) return false;
+    if (JACKET_PRODUCTS.has(key)) return false;
+    if (FIT_PRODUCTS.has(key)) return false;
+    return true;
+  }
+
+  function updateApplySleeveOptions() {
+    const show = isSleeveModeProduct();
+    applySleevesCard.style.display = show ? 'block' : 'none';
+    if (!show) {
+      applySameSleeveCheck.checked = false;
+      applySleevesWrap.style.display = 'none';
+      applySleeveHalf.checked = false;
+      applySleeveFull.checked = false;
+      applySleeve34.checked = false;
+      return;
+    }
+    applySleevesWrap.style.display = applySameSleeveCheck.checked ? 'grid' : 'none';
+    if (applySameSleeveCheck.checked) {
+      applySleeveHalf.checked = true;
+      applySleeveFull.checked = true;
+      applySleeve34.checked = true;
+    }
+  }
+
+  function updateDesignFieldBehavior() {
+    const key = normalizedProductKey();
+    styleNumberWrap.style.display = 'grid';
+    styleTypeWrap.style.display = 'grid';
+    fabricWrap.style.display = 'grid';
+    const isJacket = JACKET_PRODUCTS.has(key);
+    const isJacketWithType = JACKET_TYPE_PRODUCTS.has(key);
+    const isSleevelessJacket = key === 'sleeveless jackets';
+    const isHoodieWithType = HOODIE_TYPE_PRODUCTS.has(key);
+    const isSleevelessSinglet = SLEEVELESS_SINGLET_PRODUCTS.has(key);
+    const isCapStyleProduct = key === 'cap';
+    const isSingleStyleNumberProduct = SINGLE_STYLE_NUMBER_PRODUCTS.has(key);
+    jacketTypeWrap.style.display = isJacketWithType ? 'grid' : 'none';
+    hoodieTypeWrap.style.display = isHoodieWithType ? 'grid' : 'none';
+    if (!isJacketWithType) {
+      jacketTypeSelect.value = 'Full Zipper';
+    }
+    if (!isHoodieWithType) {
+      hoodieTypeSelect.value = 'Hoodie';
+    }
+    const jacketType = jacketTypeSelect.value;
+    const hoodieType = hoodieTypeSelect.value;
+    styleNumberInput.style.display = (isJacket || isHoodieWithType || isSleevelessSinglet || isCapStyleProduct) ? 'none' : 'block';
+    styleNumberInput.disabled = isJacket || isHoodieWithType || isSleevelessSinglet || isCapStyleProduct;
+    styleNumberSelect.style.display = (isJacket || isHoodieWithType || isSleevelessSinglet || isCapStyleProduct) ? 'block' : 'none';
+    styleNumberSelect.disabled = !(isJacket || isHoodieWithType || isSleevelessSinglet || isCapStyleProduct);
+    if (isJacket) {
+      setSelectOptions(styleNumberSelect, 'Select Style #', JACKET_STYLE_NUMBER_OPTIONS);
+      styleNumberInput.readOnly = false;
+    } else if (isHoodieWithType) {
+      const hoodieStyleOptions = hoodieType === 'Zipped Hoodie'
+        ? ZIPPED_HOODIE_STYLE_NUMBER_OPTIONS
+        : HOODIE_STYLE_NUMBER_OPTIONS;
+      setSelectOptions(styleNumberSelect, 'Select Style #', hoodieStyleOptions);
+      styleNumberInput.readOnly = false;
+    } else if (isSleevelessSinglet) {
+      setSelectOptions(styleNumberSelect, 'Select Style #', SLEEVELESS_SINGLET_STYLE_NUMBER_OPTIONS);
+      styleNumberInput.readOnly = false;
+    } else if (isCapStyleProduct) {
+      setSelectOptions(styleNumberSelect, 'Select Style #', CAP_STYLE_NUMBER_OPTIONS);
+      styleNumberInput.readOnly = false;
+    } else if (isSingleStyleNumberProduct) {
+      styleNumberInput.readOnly = true;
+      styleNumberInput.value = '001';
+    } else {
+      styleNumberInput.readOnly = false;
+    }
+
+    const isJersey = NO_PRIMARY_SECONDARY_PRODUCTS.has(key);
+    const isTrouserType = FIT_PRODUCTS.has(key);
+    const isPolo = POLO_TYPE_PRODUCTS.has(key);
+    const isHoodie = HOODIE_PRODUCTS.has(key);
+    const isCap = CAP_PRODUCTS.has(key);
+    const isHat = HAT_PRODUCTS.has(key);
+    const isHelmetClad = HELMET_CLAD_PRODUCTS.has(key);
+    const isPadClad = PAD_CLAD_PRODUCTS.has(key);
+    const isTravelTrouser = TRAVEL_TROUSER_PRODUCTS.has(key);
+    const hideStyleType = HIDE_STYLE_TYPE_PRODUCTS.has(key) || isTravelTrouser;
+    let useStyleTypeSelect = isJersey || isTrouserType || isSleevelessSinglet || isCap || isHat || isHelmetClad || isPadClad;
+    if (isJacketWithType && jacketType === 'Full Zipper') {
+      useStyleTypeSelect = true;
+    }
+    if (isHoodieWithType && hoodieType === 'Zipped Hoodie') {
+      useStyleTypeSelect = true;
+    }
+    styleTypeWrap.style.display = (isPolo || hideStyleType) ? 'none' : 'grid';
+    styleTypeInput.style.display = useStyleTypeSelect ? 'none' : 'block';
+    styleTypeInput.disabled = useStyleTypeSelect;
+    styleTypeSelect.style.display = useStyleTypeSelect ? 'block' : 'none';
+    styleTypeSelect.disabled = !useStyleTypeSelect;
+    if (isPolo || hideStyleType) {
+      styleTypeInput.value = '';
+      styleTypeInput.disabled = true;
+      styleTypeSelect.value = '';
+      styleTypeSelect.disabled = true;
+      styleTypeInput.style.display = 'none';
+      styleTypeSelect.style.display = 'none';
+    } else if (isHoodieWithType && hoodieType === 'Hoodie') {
+      styleTypeInput.disabled = false;
+      styleTypeInput.readOnly = true;
+      styleTypeInput.value = 'Urban Pocket';
+      styleTypeInput.style.display = 'block';
+      styleTypeSelect.value = '';
+      styleTypeSelect.disabled = true;
+      styleTypeSelect.style.display = 'none';
+    }
+    if (isJacketWithType && jacketType === 'Quater Zipper') {
+      styleTypeInput.readOnly = true;
+      styleTypeInput.value = 'Prime Solid';
+    } else if (!(isHoodieWithType && hoodieType === 'Hoodie')) {
+      styleTypeInput.readOnly = false;
+    }
+
+    if (isHoodieWithType && hoodieType === 'Zipped Hoodie') {
+      styleTypeInput.readOnly = false;
+      setSelectOptions(styleTypeSelect, 'Select Style Type', ZIPPED_HOODIE_STYLE_OPTIONS);
+    }
+
+    const useFabricSelect = isJersey || isTrouserType || isJacket || isHoodie || isCap || isHat || isHelmetClad || isPadClad;
+    if (isPolo) {
+      fabricInput.style.display = 'block';
+      fabricInput.disabled = false;
+      fabricInput.readOnly = true;
+      fabricInput.value = 'MARS 200 GSM';
+      fabricSelect.style.display = 'none';
+      fabricSelect.disabled = true;
+      fabricSelect.value = '';
+    } else if (isSleevelessSinglet) {
+      fabricInput.style.display = 'block';
+      fabricInput.disabled = false;
+      fabricInput.readOnly = true;
+      fabricInput.value = 'INTERLOCK 160 GSM';
+      fabricSelect.style.display = 'none';
+      fabricSelect.disabled = true;
+      fabricSelect.value = '';
+    } else {
+      fabricInput.style.display = useFabricSelect ? 'none' : 'block';
+      fabricInput.disabled = useFabricSelect;
+      fabricInput.readOnly = false;
+      fabricSelect.style.display = useFabricSelect ? 'block' : 'none';
+      fabricSelect.disabled = !useFabricSelect;
+    }
+
+    if (isJersey) {
+      setSelectOptions(styleTypeSelect, 'Select Style Type', JERSEY_STYLE_OPTIONS);
+      setSelectOptions(fabricSelect, 'Select Fabric', JERSEY_FABRIC_OPTIONS);
+    } else if (isJacket) {
+      if (isJacketWithType && jacketType === 'Full Zipper') {
+        setSelectOptions(styleTypeSelect, 'Select Style Type', FULL_ZIPPER_STYLE_OPTIONS);
+      } else if (isSleevelessJacket) {
+        styleTypeSelect.innerHTML = '<option value="">Select Style Type</option>';
+      }
+      setSelectOptions(fabricSelect, 'Select Fabric', JACKET_FABRIC_OPTIONS);
+    } else if (isTrouserType) {
+      const styleOptions = SHORTS_PRODUCTS.has(key)
+        ? SHORTS_STYLE_OPTIONS
+        : TROUSER_STYLE_OPTIONS;
+      const fabricOptions = SHORTS_PRODUCTS.has(key)
+        ? SHORTS_FABRIC_OPTIONS
+        : (TRAVEL_TROUSER_PRODUCTS.has(key) ? TRAVEL_TROUSER_FABRIC_OPTIONS : TROUSER_FABRIC_OPTIONS);
+      setSelectOptions(styleTypeSelect, 'Select Style Type', styleOptions);
+      setSelectOptions(fabricSelect, 'Select Fabric', fabricOptions);
+    } else if (isSleevelessSinglet) {
+      setSelectOptions(styleTypeSelect, 'Select Style Type', SLEEVELESS_SINGLET_STYLE_TYPE_OPTIONS);
+    } else if (isCap || isHat) {
+      setSelectOptions(styleTypeSelect, 'Select Style Type', CAP_HAT_STYLE_TYPE_OPTIONS);
+    } else if (isHoodie) {
+      setSelectOptions(fabricSelect, 'Select Fabric', HOODIE_FABRIC_OPTIONS);
+    } else if (isHelmetClad || isPadClad) {
+      setSelectOptions(styleTypeSelect, 'Select Style Type', HELMET_PAD_STYLE_TYPE_OPTIONS);
+    }
+
+    if (isCap || isHat) {
+      setSelectOptions(fabricSelect, 'Select Fabric', CAP_HAT_FABRIC_OPTIONS);
+    } else if (isHelmetClad) {
+      setSelectOptions(fabricSelect, 'Select Fabric', HELMET_CLAD_FABRIC_OPTIONS);
+    } else if (isPadClad) {
+      setSelectOptions(fabricSelect, 'Select Fabric', PAD_CLAD_FABRIC_OPTIONS);
+    }
+
+    const singleStyleNumber = !styleNumberSelect.disabled && applySingleOptionAsInput(styleNumberSelect, styleNumberInput);
+    const singleStyleType = !styleTypeSelect.disabled && applySingleOptionAsInput(styleTypeSelect, styleTypeInput);
+    const singleFabric = !fabricSelect.disabled && applySingleOptionAsInput(fabricSelect, fabricInput);
+    const singlePrimaryColor = !primaryColorSelect.disabled && applySingleOptionAsInput(primaryColorSelect, primaryColorInput);
+
+    const hidePrimarySecondary = NO_PRIMARY_SECONDARY_PRODUCTS.has(key);
+    let primaryColorLabel = 'Primary Color';
+    let secondaryColorLabel = 'Secondary Color';
+    if (BASE_ACCENT_PRODUCTS.has(key)) {
+      primaryColorLabel = 'Base Color';
+      secondaryColorLabel = 'Accent Colour';
+    }
+    if (isCap) {
+      primaryColorLabel = 'Cap Color';
+      secondaryColorLabel = 'Bore Hole Color';
+    } else if (isHat) {
+      primaryColorLabel = 'Hat Color';
+    } else if (isHelmetClad) {
+      primaryColorLabel = 'Helmet Clad Color';
+    } else if (isPadClad) {
+      primaryColorLabel = 'Pad Clad Color';
+    }
+    primaryColorWrap.childNodes[0].nodeValue = primaryColorLabel;
+    secondaryColorWrap.childNodes[0].nodeValue = secondaryColorLabel + ' ';
+    primaryColorWrap.style.display = hidePrimarySecondary ? 'none' : 'grid';
+    secondaryColorWrap.style.display = hidePrimarySecondary ? 'none' : 'grid';
+    const usePrimaryColorSelect = isTrouserType && !hidePrimarySecondary;
+    primaryColorInput.style.display = usePrimaryColorSelect ? 'none' : 'block';
+    primaryColorInput.disabled = usePrimaryColorSelect;
+    primaryColorSelect.style.display = usePrimaryColorSelect ? 'block' : 'none';
+    primaryColorSelect.disabled = !usePrimaryColorSelect;
+    if (usePrimaryColorSelect) {
+      const primaryColorOptions = CRICKET_WHITES_PANT_PRODUCTS.has(key)
+        ? CRICKET_WHITES_PANT_PRIMARY_COLOR_OPTIONS
+        : TROUSER_PRIMARY_COLOR_OPTIONS;
+      setSelectOptions(primaryColorSelect, `Select ${primaryColorLabel}`, primaryColorOptions);
+    }
+
+    if (isJacket || isHoodieWithType || isSleevelessSinglet || isCapStyleProduct) {
+      styleNumberInput.value = '';
+    } else {
+      styleNumberSelect.value = '';
+    }
+
+    if (useStyleTypeSelect || useFabricSelect) {
+      if (useStyleTypeSelect && !singleStyleType) {
+        styleTypeInput.value = '';
+      }
+      if (!isSleevelessSinglet && !singleFabric) {
+        fabricInput.value = '';
+      }
+    } else {
+      styleTypeSelect.value = '';
+      fabricSelect.value = '';
+    }
+
+    if (hidePrimarySecondary) {
+      primaryColorInput.value = '';
+      primaryColorSelect.value = '';
+      secondaryColorInput.value = '';
+    } else if (!usePrimaryColorSelect) {
+      primaryColorSelect.value = '';
+    } else if (!singlePrimaryColor) {
+      primaryColorInput.value = '';
+    }
+  }
+
+  buildLogoPopupRows();
+  logoPopupList.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target && (target.matches('input[type="checkbox"]') || target.matches('input[type="file"]'))) {
+      updateLogoPopupState();
+    }
+  });
+  logoPopupCloseIcon.addEventListener('click', closeLogoPopup);
+  logoPopupImageUpload.addEventListener('click', () => {
+    if (!currentLogoView) return;
+    const input = IMAGE_INPUTS[currentLogoView];
+    if (input) input.click();
+  });
+  logoPopupSave.addEventListener('click', () => {
+    if (!logoPopupSave.disabled) closeLogoPopup();
+  });
+  frontImageBtn.addEventListener('click', () => openLogoPopup('front'));
+  rightImageBtn.addEventListener('click', () => openLogoPopup('right'));
+  leftImageBtn.addEventListener('click', () => openLogoPopup('left'));
+  backImageBtn.addEventListener('click', () => openLogoPopup('back'));
+  frontImage.addEventListener('change', () => {
+    updateImageLabel('front');
+    updateLogoPopupState();
+  });
+  rightImage.addEventListener('change', () => {
+    updateImageLabel('right');
+    updateLogoPopupState();
+  });
+  leftImage.addEventListener('change', () => {
+    updateImageLabel('left');
+    updateLogoPopupState();
+  });
+  backImage.addEventListener('change', () => {
+    updateImageLabel('back');
+    updateLogoPopupState();
+  });
+  configForm.addEventListener('submit', (event) => {
+    const requiredViews = getRequiredImageViewsForProduct();
+    for (const view of requiredViews) {
+      const input = IMAGE_INPUTS[view];
+      if (!input || !input.files || input.files.length === 0) {
+        event.preventDefault();
+        alert(`Please upload ${view} image.`);
+        return;
+      }
+    }
+    const checked = Array.from(configForm.querySelectorAll('input[name="logo_slot"]:checked'));
+    for (const check of checked) {
+      const fileInput = configForm.querySelector(`input[name="logo_file_${check.value}"]`);
+      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        event.preventDefault();
+        alert(`Please upload file for selected logo: ${check.value.replaceAll('_', ' ')}`);
+        return;
+      }
+    }
+  });
+  rightCheck.addEventListener('change', toggleLogoUploads);
+  leftCheck.addEventListener('change', toggleLogoUploads);
+  productName.addEventListener('change', updateTypeFieldBehavior);
+  productName.addEventListener('change', updateGenderOptions);
+  productName.addEventListener('change', updateApplyGenderOptions);
+  productName.addEventListener('change', updateApplySleeveOptions);
+  productName.addEventListener('change', updateImageUploadOptions);
+  productName.addEventListener('change', updateDesignFieldBehavior);
+  jacketTypeSelect.addEventListener('change', updateDesignFieldBehavior);
+  hoodieTypeSelect.addEventListener('change', updateDesignFieldBehavior);
+  applySameDesignCheck.addEventListener('change', updateApplyGenderOptions);
+  applySameSleeveCheck.addEventListener('change', updateApplySleeveOptions);
+  genderSelect.addEventListener('change', updateApplyGenderOptions);
+  updateGenderOptions();
+  updateTypeFieldBehavior();
+  updateDesignFieldBehavior();
+  updateApplyGenderOptions();
+  updateApplySleeveOptions();
+  updateImageUploadOptions();
+  updateImageLabel('front');
+  updateImageLabel('right');
+  updateImageLabel('left');
+  updateImageLabel('back');
+</script>
+{% endif %}
+
+{% if step == 3 %}
+<div class="card">
+  <h2>Roster (CSV or Manual)</h2>
+  <p class="muted" style="margin-bottom:10px;">Import clean CSV, or use AI import for messy XLSX/CSV. Review table before approval.</p>
+  <form method="post" action="{{ url_for('players.import_csv', order_id=order.id) }}" enctype="multipart/form-data">
+    <label>Clean File (CSV/XLSX) <input type="file" name="csv_file" accept=".csv,.xlsx"></label>
+    <button class="btn" type="submit">Import CSV</button>
+  </form>
+  <form method="post" action="{{ url_for('players.import_ai', order_id=order.id) }}" enctype="multipart/form-data" style="margin-top:10px;">
+    <label>Messy File (XLSX / CSV) <input type="file" name="ai_file" accept=".xlsx,.csv"></label>
+    <button class="btn" type="submit">Import with AI</button>
+  </form>
+
+  <form method="post" action="{{ url_for('players.add_player', order_id=order.id) }}" class="grid4" style="margin-top:10px;">
+    <input type="number" name="row_number" placeholder="Row #" min="1" required>
+    <select name="product_name" id="manual-product-name" required>
+      {% for p in manual_player_products %}
+      <option value="{{ p.value }}" data-gender="{{ p.gender }}" data-sleeve="{{ p.sleeve }}">{{ p.label }}</option>
+      {% endfor %}
+    </select>
+    <input name="player_name" placeholder="Player Name" required>
+    <input name="number" placeholder="Number">
+    <input type="hidden" name="sleeve_type" id="manual-sleeve-type" value="HALF">
+    <select name="tshirt_size" id="manual-tshirt-size"></select>
+    <input type="number" name="tshirt_qty" value="1" min="1">
+    <select name="trouser_size" id="manual-trouser-size"></select>
+    <input type="number" name="trouser_qty" value="1" min="1">
+    <button class="btn" type="submit">Add</button>
+  </form>
+
+  <h3>Roster Table (used in first PDF page)</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Row</th><th>Name</th><th>No.</th><th>Sleeve</th><th>Tshirt</th><th>Trouser</th><th></th></tr></thead>
+    <tbody>
+      {% for p in order.players|sort(attribute='row_number') %}
+      <tr>
+        <td>{{ p.row_number }}</td><td>{{ p.player_name }}</td><td>{{ p.number }}</td><td>{{ p.sleeve_type }}</td>
+        <td>{{ p.tshirt_size }} x {{ p.tshirt_qty }}</td><td>{{ p.trouser_size }} x {{ p.trouser_qty }}</td>
+        <td>
+          <form method="post" action="{{ url_for('players.delete_player', order_id=order.id, player_id=p.id) }}">
+            <button type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">No players yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+<div><a class="btn" href="{{ url_for('orders.edit_order', order_id=order.id, step=4) }}">Continue to Step 4</a></div>
+<script>
+  (function () {
+    const productSelect = document.getElementById('manual-product-name');
+    const sleeveHidden = document.getElementById('manual-sleeve-type');
+    const tshirtSizeSelect = document.getElementById('manual-tshirt-size');
+    const trouserSizeSelect = document.getElementById('manual-trouser-size');
+    if (!productSelect || !sleeveHidden || !tshirtSizeSelect || !trouserSizeSelect) return;
+
+    const SIZE_OPTIONS = {
+      MENS: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'],
+      WOMENS: ['WXS', 'WS', 'WM', 'WL', 'WXL', 'W2XL', 'W3XL', 'W4XL'],
+      YOUTH: ['YXXS', 'YXS', 'YS', 'YM', 'YL', 'YXL'],
+      ADULT: ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'],
+    };
+
+    function setOptions(selectEl, values) {
+      selectEl.innerHTML = values.map((v) => `<option value="${v}">${v}</option>`).join('');
+    }
+
+    function applyProduct() {
+      const selected = productSelect.options[productSelect.selectedIndex];
+      const gender = String(selected?.getAttribute('data-gender') || 'MENS').toUpperCase();
+      const sleeve = String(selected?.getAttribute('data-sleeve') || 'HALF').toUpperCase();
+      sleeveHidden.value = sleeve;
+      const sizes = SIZE_OPTIONS[gender] || SIZE_OPTIONS.MENS;
+      setOptions(tshirtSizeSelect, sizes);
+      setOptions(trouserSizeSelect, sizes);
+    }
+
+    productSelect.addEventListener('change', applyProduct);
+    applyProduct();
+  })();
+</script>
+{% endif %}
+
+{% if step == 4 %}
+<form method="post" class="card">
+  {{ step4_form.hidden_tag() }}
+  <input type="hidden" name="step" value="4">
+  <h2>Approval Checklist</h2>
+  <div class="card subtle" style="margin-bottom:10px;">
+    <p><strong>Use checklist workflow for approval:</strong></p>
+    <p>Complete product-by-product checklist and final checks before marking this order ready.</p>
+    <p style="margin-top:8px;">
+      <a class="btn btn-outline" href="{{ url_for('orders.verify_order', order_id=order.id) }}">Open Checklist</a>
+      <a class="btn btn-outline {% if not step4_workflow.cutting_plan_unlocked %}disabled{% endif %}" href="{% if step4_workflow.cutting_plan_unlocked %}{{ url_for('orders.cutting_plan', order_id=order.id) }}{% else %}#{% endif %}" {% if not step4_workflow.cutting_plan_unlocked %}aria-disabled="true" onclick="return false;"{% endif %}>View Cutting Plan</a>
+    </p>
+    <div style="margin-top:10px;">
+      <p><strong>Workflow Status:</strong></p>
+      <ul style="margin:0 0 0 18px; padding:0;">
+        <li>Checklist complete: <strong>{{ 'Yes' if step4_workflow.checklist_complete else 'No' }}</strong></li>
+        <li>Customer plan generated: <strong>{{ 'Yes' if step4_workflow.customer_plan_generated else 'No' }}</strong></li>
+        <li>Customer approved: <strong>{{ 'Yes' if step4_workflow.customer_approved else 'No' }}</strong></li>
+        <li>Shipping captured: <strong>{{ 'Yes' if step4_workflow.shipping_captured else 'No' }}</strong></li>
+        <li>Production plan generated: <strong>{{ 'Yes' if step4_workflow.production_plan_generated else 'No' }}</strong></li>
+        <li>Cutting plan unlocked: <strong>{{ 'Yes' if step4_workflow.cutting_plan_unlocked else 'No' }}</strong></li>
+      </ul>
+    </div>
+  </div>
+  <div class="grid2">
+    <label class="full">{{ step4_form.checklist_images_verified }} {{ step4_form.checklist_images_verified.label.text }}</label>
+    <label class="full">{{ step4_form.checklist_color_variance }} {{ step4_form.checklist_color_variance.label.text }}</label>
+    <label class="full">{{ step4_form.checklist_lead_time }} {{ step4_form.checklist_lead_time.label.text }}</label>
+    <label class="full">{{ step4_form.checklist_add_on_policy }} {{ step4_form.checklist_add_on_policy.label.text }}</label>
+  </div>
+  <div class="card subtle" style="margin-top:10px;">
+    <p>Please check all the information and images provided for absolute accuracy before approving. All information on this sheet will be considered correct after your approval is received.</p>
+    <p>Please note: Due to variances, this is to be used as an approximation of garment style, logo, and number location and color. The renders are not to be used for color reference.</p>
+    <p>Due to different screen resolutions and device configurations, the colour shown on kit builder may vary after the sublimation process.</p>
+    <p><strong>NORMAL LEAD TIMES ARE 3 WEEKS FROM THE DATE OF ORDER CONFIRMATION</strong></p>
+    <p>IRA Sportswear is not responsible for delays due to Governmental Restrictions that occur because of Pandemics, Natural Disasters and any Shipping delays by Courier services or delays in Customs. With that said we have built our business by providing quality on time shipments of orders so we will always do whatever is in our control to deliver orders on time.</p>
+    <p>Production begins the next business day after the invoice has been paid and all details and artwork mockups have been confirmed by email.</p>
+    <p>Additional players added to order once production begins is considered an ADD ON ORDER. We suggest accounting for Sub Players and Add On players when placing the original order. Add On Orders will always follow the same lead times as regular order as noted above.</p>
+  </div>
+  <label>Approval Notes {{ step4_form.approval_notes }}</label>
+  {{ step4_form.submit_ready(class_='btn') }}
+  {{ step4_form.submit_approve(class_='btn') }}
+</form>
+{% endif %}
+{% endblock %}

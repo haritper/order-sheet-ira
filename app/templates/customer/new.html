@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Customer Request{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>Customer Order Request</h1>
+</div>
+<p class="muted" style="margin-bottom:12px;">Simple intake form for customers. Internal team will finalize full production configuration.</p>
+
+<form method="post" enctype="multipart/form-data" class="card grid2">
+  {{ form.hidden_tag() }}
+  <label>Customer Name {{ form.customer_name }}</label>
+  <label>Team Name {{ form.team_name }}</label>
+  <label>Email {{ form.email }}</label>
+  <label>Mobile {{ form.mobile }}</label>
+  <label class="full">Products {{ form.requested_products(size=8) }}</label>
+  <label class="full">Roster CSV {{ form.roster_csv }}</label>
+  <label class="full">Notes {{ form.notes }}</label>
+  <div style="display:flex; align-items:flex-end;">{{ form.submit(class_='btn') }}</div>
+</form>
+{% endblock %}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login | Order Sheet Creation</title>
+  <link rel="stylesheet" href="{{ url_for('pricing.static', filename='pricing/style.css') }}">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">
+          <img
+            class="brand-logo"
+            src="{{ url_for('pricing.static', filename='pricing/new-logo.avif') }}"
+            alt="Order Sheet Creation logo"
+          >
+        </div>
+        <div class="brand-copy">
+          <p class="eyebrow">Order Sheet</p>
+          <h1>Creation</h1>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <section class="panel narrow login-panel">
+        <div class="panel-header">
+          <p class="eyebrow">Access</p>
+          <h2>Sign in</h2>
+        </div>
+
+        <form method="post" class="stack">
+          {{ form.hidden_tag() }}
+          <label>
+            <span>Username</span>
+            {{ form.username() }}
+          </label>
+          <label>
+            <span>Password</span>
+            {{ form.password() }}
+          </label>
+          {{ form.submit(class_='button') }}
+        </form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

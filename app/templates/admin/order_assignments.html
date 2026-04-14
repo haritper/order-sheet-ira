@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% block title %}Order Assignments{% endblock %}
+{% block content %}
+<div class="section-head">
+  <h1>Order Assignments</h1>
+</div>
+
+<form method="post" class="card" id="assignment-form">
+  <h2>Create Assigned Order IDs</h2>
+  <div class="grid2">
+    {% for operator in operators %}
+      <label>{{ operator.full_name }} Order Count
+        <input type="number" min="0" value="0" name="count_{{ operator.id }}" class="operator-count" data-operator="{{ operator.full_name }}" required>
+      </label>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+    <button class="btn btn-outline" type="button" id="generate-rows">Generate Rows</button>
+    <button class="btn" type="submit">Create Assignments</button>
+  </div>
+
+  <div id="rows-wrap" style="margin-top:14px; display:none;">
+    <h3>Assignment Rows</h3>
+    <p class="muted">Enter team name for each generated order ID row.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Operator</th>
+            <th>Sequence</th>
+            <th>Order ID Preview</th>
+            <th>Team Name</th>
+          </tr>
+        </thead>
+        <tbody id="assignment-rows-body"></tbody>
+      </table>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <h2>Recent Assignments</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Order Id</th><th>Operator</th><th>Team</th><th>Status</th><th>Linked Order</th><th>Created</th></tr>
+      </thead>
+      <tbody>
+        {% for row in recent_assignments %}
+        <tr>
+          <td><strong>{{ row.order_code }}</strong></td>
+          <td>{{ row.operator.full_name if row.operator else 'Unknown' }}</td>
+          <td>{{ row.team_name }}</td>
+          <td>{{ row.status }}</td>
+          <td>{{ row.linked_order.order_id if row.linked_order else '-' }}</td>
+          <td>{{ row.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">No assignments yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const form = document.getElementById('assignment-form');
+    const generateBtn = document.getElementById('generate-rows');
+    const rowsWrap = document.getElementById('rows-wrap');
+    const rowsBody = document.getElementById('assignment-rows-body');
+    const month = new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    const year = new Date().getFullYear();
+
+    function slugTeam(value) {
+      return String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'TEAM';
+    }
+
+    function sequenceWidth(raw, endValue) {
+      const base = String(raw || '').trim().length;
+      return Math.max(3, base, String(endValue || '').length);
+    }
+
+    function buildRows() {
+      rowsBody.innerHTML = '';
+      const fallbackStart = {{ counters.pod_next_number|int }};
+      const start = fallbackStart;
+      const countInputs = Array.from(document.querySelectorAll('.operator-count'));
+      const allocation = [];
+      for (const input of countInputs) {
+        const count = Math.max(0, parseInt(String(input.value || '0'), 10) || 0);
+        const operator = input.getAttribute('data-operator') || 'Operator';
+        for (let i = 0; i < count; i += 1) allocation.push(operator);
+      }
+      if (allocation.length === 0) {
+        rowsWrap.style.display = 'none';
+        return;
+      }
+
+      const width = sequenceWidth(String(start), start + allocation.length - 1);
+      allocation.forEach((operator, idx) => {
+        const seq = start + idx;
+        const seqText = String(seq).padStart(width, '0');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td>${operator}</td>
+          <td>${seqText}</td>
+          <td><span data-preview="row-${idx}">POD-${year}-${month}-${seqText}-TEAM</span></td>
+          <td><input type="text" name="team_name_${idx}" data-preview-target="row-${idx}" data-seq="${seqText}" required></td>
+        `;
+        rowsBody.appendChild(tr);
+      });
+      rowsWrap.style.display = 'block';
+    }
+
+    generateBtn.addEventListener('click', buildRows);
+    form.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!target || target.getAttribute('data-preview-target') === null) return;
+      const key = target.getAttribute('data-preview-target');
+      const seq = target.getAttribute('data-seq') || '000';
+      const preview = document.querySelector(`[data-preview="${key}"]`);
+      if (!preview) return;
+      preview.textContent = `POD-${year}-${month}-${seq}-${slugTeam(target.value)}`;
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+{% block title %}Checklist {{ order.order_id }}{% endblock %}
+{% block content %}
+{% set total_steps = 2 + (dynamic_products|length) %}
+<section class="wizard-section">
+  <div class="wizard-header">
+    <div>
+      <h1 class="wizard-title">Verify Order <span class="accent">{{ order.order_id }}</span></h1>
+      <p class="muted">{{ order.customer_name }} · {{ order.enquiry_date or '' }}</p>
+    </div>
+    <div class="row" style="gap:8px;">
+      <form method="post" action="{{ url_for('orders.run_analysis', order_id=order.id) }}">
+        <button class="btn btn-outline btn-small" type="submit">Re-run AI Analysis</button>
+      </form>
+      <a href="{{ url_for('orders.order_detail', order_id=order.id) }}" class="btn btn-outline btn-small">&larr; Back</a>
+    </div>
+  </div>
+
+  <div class="wizard-progress" id="wizardProgress">
+    <div class="wp-step" id="wps-1"><div class="wp-circle">1</div><div class="wp-label">Order Overview</div></div>
+    <div class="wp-line"></div>
+    {% for prod in dynamic_products %}
+      {% set snum = loop.index + 1 %}
+      <div class="wp-step" id="wps-{{ snum }}"><div class="wp-circle">{{ snum }}</div><div class="wp-label">{{ prod.name }}</div></div>
+      <div class="wp-line"></div>
+    {% endfor %}
+    <div class="wp-step" id="wps-{{ total_steps }}"><div class="wp-circle">{{ total_steps }}</div><div class="wp-label">Final Approval</div></div>
+  </div>
+
+  <div class="wizard-body">
+    <div class="pdf-col card">
+      <h2 class="card-title">Order Sheet PDF</h2>
+      <iframe id="pdfFrame" src="{{ presigned_url }}#page=1" title="Order PDF"></iframe>
+    </div>
+
+    <form method="post" id="verifyForm" class="wizard-form">
+      <input type="hidden" name="current_page" id="hiddenPage" value="{{ order_check.current_page or 1 }}">
+      <input type="hidden" name="overview_pdf_page" id="hiddenOverviewPage" value="{{ overview_pdf_page or 1 }}">
+
+      <div class="step-panel" id="step-1">
+        <div class="card step-card">
+          <div class="step-card-hd">
+            <span class="step-badge">Step 1</span>
+            <h2 class="card-title">Order Overview</h2>
+          </div>
+          <div class="field-pairs">
+            <label class="checkbox">
+              <input type="checkbox" name="order_id_verified" {% if order_check.order_id_verified %}checked{% endif %}>
+              <span>Order ID is correct ({{ order.order_id }})</span>
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" name="enquiry_date_verified" {% if order_check.enquiry_date_verified %}checked{% endif %}>
+              <span>Enquiry date is correct ({{ order.enquiry_date or '-' }})</span>
+            </label>
+          </div>
+
+          {% if garment_cmp %}
+          <div class="subsection">
+            <h3 class="sub-title">Garment Quantities <span class="auto-tag">Auto-checked</span></h3>
+            {% for cat, prods in garment_cmp.items() %}
+              {% if prods %}
+              <div class="category-block">
+                <h4 class="category-title">{{ cat }}</h4>
+                {% for prod, data in prods.items() %}
+                  <div class="product-block">
+                    <h5 class="product-title">{{ prod }}</h5>
+                    <div class="table-wrap">
+                      <table>
+                        <thead><tr><th>Size</th><th>Overview</th><th>Packing</th><th>Status</th></tr></thead>
+                        <tbody>
+                          {% set dynamic_sizes = ((data.expected.keys() | list) + (data.actual.keys() | list)) | unique %}
+                          {% for size in dynamic_sizes %}
+                            {% set exp = data.expected.get(size) %}
+                            {% set act = data.actual.get(size) %}
+                            <tr>
+                              <td>{{ size }}</td>
+                              <td>{{ exp if exp is not none else 'N/A' }}</td>
+                              <td>{{ act if act is not none else 'N/A' }}</td>
+                              <td>{% if exp is not none and act is not none and exp == act %}Match{% else %}Mismatch{% endif %}</td>
+                            </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        <div class="nav-btns">
+          <div class="row" style="gap:8px;">
+            <button type="button" class="btn btn-outline" id="prevOverviewBtn" style="display:none;">&larr; Previous Page</button>
+            <span class="muted" id="overviewPageIndicator" style="align-self:center;"></span>
+          </div>
+          <button type="button" class="btn next-btn" data-step="1" id="nextBtn1">Next &rarr;</button>
+        </div>
+      </div>
+
+      {% for product in dynamic_products %}
+        {% set snum = loop.index + 1 %}
+        <div class="step-panel" id="step-{{ snum }}">
+          <div class="card step-card">
+            <div class="step-card-hd">
+              <span class="step-badge">Step {{ snum }}</span>
+              <h2 class="card-title">{{ product.name }} Design</h2>
+            </div>
+            <div class="field-pairs">
+              {% set pkey = (product.key or product.name or ('product_' ~ snum))|lower|replace(' ', '_') %}
+              {% set pvals = product.values if product.values is mapping else {} %}
+              {% for field in product.fields %}
+                {% set field_token = field|lower|replace(' ', '_')|replace('-', '_')|replace('/', '_') %}
+                {% set field_key = "dyn_" ~ pkey ~ "_" ~ field_token %}
+                {% set checked = dynamic_responses.get(field_key, False) %}
+                {% set field_value = pvals.get(field, pvals.get(field_token, '')) %}
+                {% if (field_value|string)|trim|lower != "none" %}
+                  <label class="checkbox">
+                    <input type="checkbox" name="{{ field_key }}" {% if checked %}checked{% endif %}>
+                    <span>{{ field|replace('_', ' ')|title }}{% if field_value %}: <strong>{{ field_value }}</strong>{% endif %}</span>
+                  </label>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+          <div class="nav-btns">
+            <button type="button" class="btn btn-outline" data-go-step="{{ snum - 1 }}">&larr; Back</button>
+            <button type="button" class="btn next-btn" data-step="{{ snum }}" id="nextBtn{{ snum }}">Next &rarr;</button>
+          </div>
+        </div>
+      {% endfor %}
+
+      <div class="step-panel" id="step-{{ total_steps }}">
+        <div class="card step-card">
+          <div class="step-card-hd">
+            <span class="step-badge">Final</span>
+            <h2 class="card-title">Final Approval Checklist</h2>
+          </div>
+          <div class="field-pairs">
+            <label class="checkbox"><input type="checkbox" name="design_checked" {% if order_check.design_checked %}checked{% endif %}><span>Design checked</span></label>
+            <label class="checkbox"><input type="checkbox" name="logos_checked" {% if order_check.logos_checked %}checked{% endif %}><span>Logos checked</span></label>
+            <label class="checkbox"><input type="checkbox" name="gender_checked" {% if order_check.gender_checked %}checked{% endif %}><span>Gender checked</span></label>
+            <label class="checkbox"><input type="checkbox" name="sleeve_type_checked" {% if order_check.sleeve_type_checked %}checked{% endif %}><span>Sleeve type checked</span></label>
+            <label class="checkbox"><input type="checkbox" name="names_numbers_sizes_checked" {% if order_check.names_numbers_sizes_checked %}checked{% endif %}><span>Names / numbers / sizes checked</span></label>
+            <label class="checkbox"><input type="checkbox" name="quantity_checked" {% if order_check.quantity_checked %}checked{% endif %}><span>Quantity checked</span></label>
+          </div>
+          {% if checklist_done %}
+            <div class="flash success">Checklist complete. You can mark this order ready for approval.</div>
+          {% else %}
+            <div class="flash warning">Checklist pending ({{ checklist_missing|length }} item(s)).</div>
+          {% endif %}
+
+          {% if flow.customer_plan_generated %}
+          <div class="subsection" style="margin-top:12px;">
+            <div class="flash {% if flow.customer_approved %}success{% else %}warning{% endif %}">
+              Customer verification status:
+              <strong>{% if flow.customer_approved %}Verified{% else %}Pending / Not Verified{% endif %}</strong>
+            </div>
+            <div class="flash {% if invoice_receipt_uploaded %}success{% else %}warning{% endif %}" style="margin-top:8px;">
+              Invoice receipt:
+              <strong>{% if invoice_receipt_uploaded %}Uploaded{% else %}Not uploaded{% endif %}</strong>
+              {% if invoice_receipt_attachment %}
+                <a class="btn btn-outline btn-small" style="margin-left:8px;" href="{{ url_for('exports.get_export', order_id=order.id, attachment_id=invoice_receipt_attachment.id) }}">Download</a>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          <div id="shippingFields" class="subsection" style="margin-top:12px;{% if not flow.customer_approved %}display:none;{% endif %}">
+            <h3 class="sub-title">Shipping Details (Required)</h3>
+            <div class="grid2">
+              <label class="full">Shipping Address
+                <input type="text" name="shipping_address" value="{{ flow.shipping_address or '' }}" {% if not flow.customer_approved %}disabled{% endif %}>
+              </label>
+              <label>City
+                <input type="text" name="city" value="{{ flow.city or '' }}" {% if not flow.customer_approved %}disabled{% endif %}>
+              </label>
+              <label>State
+                <input type="text" name="state" value="{{ flow.state or '' }}" {% if not flow.customer_approved %}disabled{% endif %}>
+              </label>
+              <label>ZIP Code
+                <input type="text" name="zip_code" value="{{ flow.zip_code or '' }}" {% if not flow.customer_approved %}disabled{% endif %}>
+              </label>
+              <label>Country
+                <input type="text" name="country" value="{{ flow.country or '' }}" {% if not flow.customer_approved %}disabled{% endif %}>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="nav-btns">
+          <button type="button" class="btn btn-outline" data-go-step="{{ total_steps - 1 }}">&larr; Back</button>
+          <div class="row" style="gap:8px;">
+            <button class="btn btn-outline" type="submit">Save Checklist</button>
+            {% if checklist_done %}
+            <button class="btn btn-outline" type="submit" name="generate_customer_plan" value="1">
+              {% if flow.customer_plan_generated %}Re-generate Customer Plan{% else %}Generate Customer Plan{% endif %}
+            </button>
+            {% endif %}
+            {% if flow.customer_plan_generated and latest_customer_plan_attachment_id %}
+            <a class="btn btn-outline" href="{{ url_for('exports.get_export', order_id=order.id, attachment_id=latest_customer_plan_attachment_id) }}">Download Customer Plan</a>
+            {% endif %}
+            {% if flow.customer_plan_generated and not flow.customer_approved %}
+            <button class="btn btn-outline" type="button" id="openCustomerVerifyBtn">Verify Customer Plan</button>
+            {% endif %}
+            {% if flow.customer_plan_generated and flow.customer_approved %}
+            <button class="btn btn-outline" type="button" id="openInvoiceReceiptBtn">{% if invoice_receipt_uploaded %}Re-upload Invoice Receipt{% else %}Upload Invoice Receipt{% endif %}</button>
+            {% endif %}
+            {% if production_plan_enabled %}
+            <button class="btn btn-outline" type="submit" name="generate_production_plan" value="1" id="generateProductionBtn">Generate Production Plan</button>
+            {% endif %}
+            {% if cutting_plan_unlocked %}
+            <a class="btn btn-outline" href="{{ url_for('orders.cutting_plan', order_id=order.id) }}">Open Cutting Plan</a>
+            {% endif %}
+            <button class="btn" type="submit" name="mark_ready" value="1" id="approveBtn">Save and Mark READY_FOR_APPROVAL</button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% if flow.customer_plan_generated and latest_customer_plan_attachment_id %}
+  {% if download_customer_plan %}
+  <iframe id="customerPlanDownloadFrame" src="{{ url_for('exports.get_export', order_id=order.id, attachment_id=latest_customer_plan_attachment_id) }}" style="display:none;"></iframe>
+  {% endif %}
+{% endif %}
+
+{% if flow.customer_plan_generated %}
+<div id="customerVerifyModal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:{% if show_customer_dialog and not flow.customer_approved %}flex{% else %}none{% endif %};align-items:center;justify-content:center;z-index:9999;">
+  <div class="card" style="width:min(540px,92vw);padding:18px;">
+    <h3 style="margin:0 0 8px 0;">Customer Verification</h3>
+    <p style="margin:0 0 14px 0;">Has customer verified the generated customer plan?</p>
+    <form method="post" class="row" style="gap:8px;justify-content:flex-end;">
+      <input type="hidden" name="current_page" value="{{ total_steps }}">
+      <input type="hidden" name="set_customer_verified" value="1">
+      <button class="btn btn-outline" type="button" id="closeCustomerVerifyModal">Close</button>
+      <button class="btn btn-outline" type="submit" name="customer_verified" value="no">Not Verified</button>
+      <button class="btn" type="submit" name="customer_verified" value="yes">Verified</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if flow.customer_plan_generated %}
+<div id="invoiceReceiptModal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:{% if show_invoice_dialog and flow.customer_approved %}flex{% else %}none{% endif %};align-items:center;justify-content:center;z-index:9999;">
+  <div class="card" style="width:min(560px,92vw);padding:18px;">
+    <h3 style="margin:0 0 8px 0;">Invoice Receipt</h3>
+    <p style="margin:0 0 14px 0;">Upload invoice receipt before production plan generation. You can skip for now.</p>
+    <form method="post" enctype="multipart/form-data" class="stack">
+      <input type="hidden" name="current_page" value="{{ total_steps }}">
+      <input type="hidden" name="set_invoice_receipt" value="1">
+      <label>Invoice Receipt (PDF/PNG/JPG/JPEG)
+        <input type="file" name="invoice_receipt" accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf">
+      </label>
+      {% if invoice_receipt_attachment %}
+      <p class="muted" style="margin:0;">
+        Current file: <strong>{{ invoice_receipt_attachment.filename }}</strong>
+      </p>
+      {% endif %}
+      <div class="row" style="gap:8px;justify-content:flex-end;">
+        <button class="btn btn-outline" type="button" id="closeInvoiceReceiptModal">Close</button>
+        <button class="btn btn-outline" type="submit" name="skip_invoice_receipt" value="1">Skip for now</button>
+        <button class="btn" type="submit" name="upload_invoice_receipt" value="1">Upload & Continue</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script id="dynamic-products-json" type="application/json">
+{{ dynamic_products | tojson | safe }}
+</script>
+<script>
+  (function () {
+    const totalSteps = Number("{{ total_steps }}") || 2;
+    const overviewTotalPages = Number("{{ overview_total_pages or 1 }}") || 1;
+    const dynamicProducts = JSON.parse(document.getElementById("dynamic-products-json").textContent || "[]");
+    const stepToPdfPage = {1: 1};
+    dynamicProducts.forEach((product, i) => { stepToPdfPage[i + 2] = Number(product.pdf_page || (i + 2)); });
+    stepToPdfPage[totalSteps] = totalSteps;
+    const hiddenOverviewPage = document.getElementById("hiddenOverviewPage");
+    let overviewPageCursor = parseInt((hiddenOverviewPage && hiddenOverviewPage.value) || "1", 10);
+    if (!Number.isFinite(overviewPageCursor) || overviewPageCursor < 1) overviewPageCursor = 1;
+    if (overviewPageCursor > overviewTotalPages) overviewPageCursor = overviewTotalPages;
+    if (hiddenOverviewPage) hiddenOverviewPage.value = String(overviewPageCursor);
+
+    let currentStep = parseInt(document.getElementById("hiddenPage").value || "1", 10);
+    if (!Number.isFinite(currentStep) || currentStep < 1) currentStep = 1;
+    if (currentStep > totalSteps) currentStep = totalSteps;
+
+    function updatePdfPage(step) {
+      const frame = document.getElementById("pdfFrame");
+      if (!frame) return;
+      const page = (step === 1) ? overviewPageCursor : (stepToPdfPage[step] || step);
+      frame.src = frame.src.split("#")[0] + "#page=" + page;
+    }
+
+    function syncOverviewControls() {
+      const prevOverviewBtn = document.getElementById("prevOverviewBtn");
+      const overviewPageIndicator = document.getElementById("overviewPageIndicator");
+      const nextBtn1 = document.getElementById("nextBtn1");
+      if (overviewPageIndicator) {
+        overviewPageIndicator.textContent = overviewTotalPages > 1
+          ? `Overview Page ${overviewPageCursor} / ${overviewTotalPages}`
+          : "Overview Page 1 / 1";
+      }
+      if (prevOverviewBtn) {
+        prevOverviewBtn.style.display = (overviewTotalPages > 1 && overviewPageCursor > 1) ? "" : "none";
+      }
+      if (nextBtn1) {
+        nextBtn1.textContent = (overviewTotalPages > 1 && overviewPageCursor < overviewTotalPages)
+          ? "Next Page →"
+          : "Next →";
+      }
+      if (hiddenOverviewPage) hiddenOverviewPage.value = String(overviewPageCursor);
+    }
+
+    function goStep(n) {
+      const next = Math.max(1, Math.min(totalSteps, parseInt(n || "1", 10)));
+      for (let i = 1; i <= totalSteps; i++) {
+        const panel = document.getElementById("step-" + i);
+        if (panel) panel.classList.remove("active");
+        const dot = document.getElementById("wps-" + i);
+        if (dot) {
+          dot.classList.remove("wp-active", "wp-done");
+          if (i < next) dot.classList.add("wp-done");
+          if (i === next) dot.classList.add("wp-active");
+        }
+      }
+      const panel = document.getElementById("step-" + next);
+      if (panel) panel.classList.add("active");
+      document.getElementById("hiddenPage").value = String(next);
+      currentStep = next;
+      syncOverviewControls();
+      updatePdfPage(next);
+    }
+
+    function updateNextBtn(stepNum) {
+      const panel = document.getElementById("step-" + stepNum);
+      const btn = document.getElementById("nextBtn" + stepNum);
+      if (!panel || !btn) return;
+      const boxes = Array.from(panel.querySelectorAll("input[type='checkbox']"));
+      const allChecked = boxes.length === 0 || boxes.every((cb) => cb.checked);
+      btn.disabled = !allChecked;
+    }
+
+    function updateApproveBtn() {
+      const panel = document.getElementById("step-" + totalSteps);
+      const btn = document.getElementById("approveBtn");
+      if (!panel || !btn) return;
+      const boxes = Array.from(panel.querySelectorAll("input[type='checkbox']"));
+      const allChecked = boxes.length === 0 || boxes.every((cb) => cb.checked);
+      btn.disabled = !allChecked;
+    }
+
+    function updateWorkflowControls() {
+      const customerApproved = {{ flow.customer_approved | tojson }};
+      const shippingFields = document.getElementById("shippingFields");
+      if (!shippingFields) return;
+      const isApproved = !!customerApproved;
+      shippingFields.style.display = isApproved ? "" : "none";
+      const shippingInputs = Array.from(shippingFields.querySelectorAll("input"));
+      shippingInputs.forEach((input) => {
+        input.disabled = !isApproved;
+      });
+    }
+
+    const openCustomerVerifyBtn = document.getElementById("openCustomerVerifyBtn");
+    const customerVerifyModal = document.getElementById("customerVerifyModal");
+    const closeCustomerVerifyModal = document.getElementById("closeCustomerVerifyModal");
+    if (openCustomerVerifyBtn && customerVerifyModal) {
+      openCustomerVerifyBtn.addEventListener("click", function () {
+        customerVerifyModal.style.display = "flex";
+      });
+    }
+    if (closeCustomerVerifyModal && customerVerifyModal) {
+      closeCustomerVerifyModal.addEventListener("click", function () {
+        customerVerifyModal.style.display = "none";
+      });
+    }
+    if (customerVerifyModal) {
+      customerVerifyModal.addEventListener("click", function (e) {
+        if (e.target === customerVerifyModal) {
+          customerVerifyModal.style.display = "none";
+        }
+      });
+    }
+
+    const openInvoiceReceiptBtn = document.getElementById("openInvoiceReceiptBtn");
+    const invoiceReceiptModal = document.getElementById("invoiceReceiptModal");
+    const closeInvoiceReceiptModal = document.getElementById("closeInvoiceReceiptModal");
+    if (openInvoiceReceiptBtn && invoiceReceiptModal) {
+      openInvoiceReceiptBtn.addEventListener("click", function () {
+        invoiceReceiptModal.style.display = "flex";
+      });
+    }
+    if (closeInvoiceReceiptModal && invoiceReceiptModal) {
+      closeInvoiceReceiptModal.addEventListener("click", function () {
+        invoiceReceiptModal.style.display = "none";
+      });
+    }
+    if (invoiceReceiptModal) {
+      invoiceReceiptModal.addEventListener("click", function (e) {
+        if (e.target === invoiceReceiptModal) {
+          invoiceReceiptModal.style.display = "none";
+        }
+      });
+    }
+
+    document.querySelectorAll(".next-btn").forEach((btn) => {
+      btn.addEventListener("click", function () {
+        const step = parseInt(this.dataset.step || "1", 10);
+        if (step === 1 && overviewPageCursor < overviewTotalPages) {
+          overviewPageCursor += 1;
+          if (hiddenOverviewPage) hiddenOverviewPage.value = String(overviewPageCursor);
+          document.getElementById("hiddenPage").value = "1";
+          document.getElementById("verifyForm").submit();
+          return;
+        }
+        document.getElementById("hiddenPage").value = String(step + 1);
+        if (hiddenOverviewPage) hiddenOverviewPage.value = String(overviewPageCursor);
+        document.getElementById("verifyForm").submit();
+      });
+    });
+    const prevOverviewBtn = document.getElementById("prevOverviewBtn");
+    if (prevOverviewBtn) {
+      prevOverviewBtn.addEventListener("click", function () {
+        if (overviewPageCursor <= 1) return;
+        overviewPageCursor -= 1;
+        if (hiddenOverviewPage) hiddenOverviewPage.value = String(overviewPageCursor);
+        document.getElementById("hiddenPage").value = "1";
+        document.getElementById("verifyForm").submit();
+      });
+    }
+    document.querySelectorAll("[data-go-step]").forEach((btn) => {
+      btn.addEventListener("click", function () {
+        const targetStep = parseInt(this.dataset.goStep || "1", 10);
+        if (currentStep === 2 && targetStep === 1) {
+          overviewPageCursor = overviewTotalPages;
+        }
+        goStep(targetStep);
+      });
+    });
+    document.querySelectorAll(".step-panel input[type='checkbox']").forEach((cb) => {
+      cb.addEventListener("change", function () {
+        const panel = this.closest(".step-panel");
+        if (!panel) return;
+        const stepId = parseInt((panel.id || "").replace("step-", "") || "1", 10);
+        if (stepId < totalSteps) updateNextBtn(stepId);
+        updateApproveBtn();
+        updateWorkflowControls();
+      });
+    });
+    goStep(currentStep);
+    for (let i = 1; i <= totalSteps; i++) updateNextBtn(i);
+    updateApproveBtn();
+    updateWorkflowControls();
+    syncOverviewControls();
+  })();
+</script>
+{% endblock %}

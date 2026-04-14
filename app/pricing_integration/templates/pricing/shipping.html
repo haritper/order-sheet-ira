@@ -1,0 +1,42 @@
+{% extends "pricing/base.html" %}
+{% block title %}Shipping & Duties | Pricing Intelligence{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <p class="eyebrow">Settings</p>
+    <h2>Shipping and duty profiles</h2>
+    <p class="muted">These defaults help future orders, while actual per-order shipping and duties are still recorded on each order.</p>
+  </div>
+  <div class="cards">
+    {% for profile in profiles %}
+    <form method="post" class="panel card">
+      <input type="hidden" name="pricing_csrf_token" value="{{ pricing_csrf_token }}">
+      <input type="hidden" name="profile_id" value="{{ profile.id }}">
+      <h3>{{ profile.profile_name }}</h3>
+      <p class="muted">{{ profile.destination_country or "-" }}</p>
+      <div class="form-grid">
+        <label>
+          <span>Fee (USD)</span>
+          <input type="number" step="0.01" name="fee" placeholder="USD" value="{{ profile.fee or 0 }}">
+        </label>
+        <label>
+          <span>Duty %</span>
+          <input type="number" step="0.01" name="duty_percent" value="{{ profile.duty_percent or 0 }}">
+        </label>
+        <label>
+          <span>Duty Flat (USD)</span>
+          <input type="number" step="0.01" name="duty_flat" placeholder="USD" value="{{ profile.duty_flat or 0 }}">
+        </label>
+      </div>
+      <label>
+        <span>Notes</span>
+        <textarea name="notes" rows="3">{{ profile.notes or "" }}</textarea>
+      </label>
+      <button class="button" type="submit">Save Profile</button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+
