@@ -121,3 +121,4 @@ docker compose up --build -d
 - Generated PDFs are stored in `data/pdfs/` and indexed in `attachments`.
 - Daily SQL backups are written to `data/backups/` and retained for 14 days.
 - WeasyPrint requires OS-level rendering libraries in runtime environment.
+# order-sheet-ira
