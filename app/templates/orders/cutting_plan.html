@@ -22,14 +22,35 @@
     {% set display_style = row.style_type_display or row.style or '-' %}
     <article class="card cp-card">
       <h2 class="card-title">Production - {{ display_product }}</h2>
-      <div class="grid3">
-        <p><strong>Order ID:</strong> {{ row.order_id or order.order_id }}</p>
-        <p><strong>Style:</strong> {{ display_style }}</p>
-        <p><strong>Fabric:</strong> {{ row.fabric or '-' }}</p>
-        <p><strong>IRA Fabric:</strong> {{ row.ira_fabric_name or '-' }}</p>
-        <p><strong>Colour:</strong> {{ row.colour or '-' }}</p>
-        <p><strong>Pattern:</strong> {{ row.pattern or '-' }}</p>
-        <p><strong>Total Qty:</strong> {{ row.total or 0 }}</p>
+      <div class="cp-details-wrap">
+        <table class="cp-details-table">
+          <tbody>
+            <tr>
+              <th>Order ID</th>
+              <td>{{ row.order_id or order.order_id }}</td>
+              <th>Created Date</th>
+              <td>{{ row.created_at or '-' }}</td>
+            </tr>
+            <tr>
+              <th>Style</th>
+              <td>{{ display_style }}</td>
+              <th>Fabric</th>
+              <td>{{ row.fabric or '-' }}</td>
+            </tr>
+            <tr>
+              <th>IRA Fabric</th>
+              <td>{{ row.ira_fabric_name or '-' }}</td>
+              <th>Colour</th>
+              <td>{{ row.colour or '-' }}</td>
+            </tr>
+            <tr>
+              <th>Pattern</th>
+              <td>{{ row.pattern or '-' }}</td>
+              <th>Total Qty</th>
+              <td>{{ row.total or 0 }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="table-wrap">

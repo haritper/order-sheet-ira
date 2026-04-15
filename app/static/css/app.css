@@ -224,6 +224,34 @@ input.btn {
 
 .table-wrap { overflow: auto; }
 
+.cp-details-wrap {
+  margin-bottom: .9rem;
+}
+
+.cp-details-table {
+  margin-bottom: 0;
+  table-layout: fixed;
+}
+
+.cp-details-table th,
+.cp-details-table td {
+  padding: .62rem .7rem;
+  vertical-align: middle;
+}
+
+.cp-details-table th {
+  width: 16%;
+  background: #f8fafc;
+  color: #1e293b;
+  text-align: left;
+  font-weight: 700;
+}
+
+.cp-details-table td {
+  width: 34%;
+  word-break: break-word;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -454,4 +482,8 @@ tbody tr:nth-child(even) { background: #fcfdff; }
   .pdf-col { position: static; }
   .pdf-col iframe { height: 70vh; min-height: 460px; }
   .pdf-canvas-wrap { height: 64vh; min-height: 420px; }
+  .cp-details-table th,
+  .cp-details-table td {
+    width: auto;
+  }
 }
