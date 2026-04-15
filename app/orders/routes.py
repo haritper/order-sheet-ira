@@ -16,6 +16,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 from sqlalchemy import or_
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
@@ -1856,8 +1857,21 @@ def delete_order(order_id):
         return redirect(url_for("orders.list_orders"))
 
     order_label = order.order_id or str(order.id)
-    db.session.delete(order)
-    db.session.commit()
+    assignment = getattr(order, "assignment", None)
+    if assignment is not None:
+        assignment.linked_order_id = None
+        if str(getattr(assignment, "status", "")).strip().upper() != OrderAssignmentStatus.COMPLETED.value:
+            assignment.status = OrderAssignmentStatus.PENDING.value
+    order.assignment_id = None
+
+    try:
+        db.session.delete(order)
+        db.session.commit()
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        current_app.logger.exception("Failed to delete order %s: %s", order.id, exc)
+        flash("Could not delete the order due to a database error.", "danger")
+        return redirect(url_for("orders.list_orders"))
 
     try:
         delete_order_storage(order.id)

@@ -351,3 +351,43 @@ def test_operator_cannot_access_other_operator_order(app, operator_client):
 
     resp = operator_client.get(f"/orders/{oid}")
     assert resp.status_code == 403
+
+
+def test_admin_can_delete_order_with_assignment(app, auth_client):
+    with app.app_context():
+        operator = User.query.filter_by(email="giri@gmail.com").first()
+        order = Order(order_id="POD-2026-APR-060-DELETE", customer_name="Delete Customer")
+        bootstrap_order_rows(order)
+        db.session.add(order)
+        db.session.flush()
+        assignment = OrderAssignment(
+            order_code=order.order_id,
+            team_name="DELETE",
+            operator_id=operator.id,
+            sequence_number=60,
+            month_abbr="APR",
+            year=2026,
+            status=OrderAssignmentStatus.IN_PROGRESS.value,
+            linked_order_id=order.id,
+        )
+        db.session.add(assignment)
+        db.session.flush()
+        order.assignment_id = assignment.id
+        db.session.commit()
+        oid = order.id
+        assignment_id = assignment.id
+
+    resp = auth_client.post(
+        f"/orders/{oid}/delete",
+        data={"delete_pin": "2019"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"deleted" in resp.data.lower()
+
+    with app.app_context():
+        assert Order.query.get(oid) is None
+        assignment = OrderAssignment.query.get(assignment_id)
+        assert assignment is not None
+        assert assignment.linked_order_id is None
+        assert assignment.status == OrderAssignmentStatus.PENDING.value
