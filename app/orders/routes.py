@@ -1857,14 +1857,20 @@ def delete_order(order_id):
         return redirect(url_for("orders.list_orders"))
 
     order_label = order.order_id or str(order.id)
-    assignment = getattr(order, "assignment", None)
-    if assignment is not None:
+    assignments = OrderAssignment.query.filter(
+        or_(
+            OrderAssignment.id == order.assignment_id,
+            OrderAssignment.linked_order_id == int(order.id),
+        )
+    ).all()
+    for assignment in assignments:
         assignment.linked_order_id = None
         if str(getattr(assignment, "status", "")).strip().upper() != OrderAssignmentStatus.COMPLETED.value:
             assignment.status = OrderAssignmentStatus.PENDING.value
     order.assignment_id = None
 
     try:
+        db.session.flush()
         db.session.delete(order)
         db.session.commit()
     except SQLAlchemyError as exc:
