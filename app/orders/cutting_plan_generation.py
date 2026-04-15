@@ -487,6 +487,23 @@ def _prepare_template_rows(cutting_plan: dict) -> list[dict]:
     return prepared
 
 
+def _group_cutting_plan_pages(rows: list[dict], per_page: int = 2) -> list[list[dict]]:
+    if per_page <= 0:
+        per_page = 1
+    grouped = []
+    current = []
+    for row in rows or []:
+        current.append(row)
+        if len(current) >= per_page:
+            grouped.append(current)
+            current = []
+    if current:
+        grouped.append(current)
+    if not grouped:
+        grouped.append([])
+    return grouped
+
+
 def _render_playwright_pdf(html_content: str) -> bytes:
     if sync_playwright is None:
         raise RuntimeError("Playwright is not available.")
@@ -518,9 +535,10 @@ def _render_fitz_html_fallback(rows: list[dict]) -> bytes:
     doc = fitz.open()
     page_w, page_h = 595, 842  # A4 points
     margin = 16
-    for row in rows or [{}]:
+    pages = _group_cutting_plan_pages(rows)
+    for page_rows in pages:
         page = doc.new_page(width=page_w, height=page_h)
-        html_content = render_template("exports/cutting_plan_pdf.html", rows=[row] if row else [])
+        html_content = render_template("exports/cutting_plan_pdf.html", pages=[page_rows])
         page.insert_htmlbox(
             fitz.Rect(margin, margin, page_w - margin, page_h - margin),
             html_content,
@@ -533,7 +551,10 @@ def _render_fitz_html_fallback(rows: list[dict]) -> bytes:
 
 def build_cutting_plan_pdf(cutting_plan: dict) -> bytes:
     rows = _prepare_template_rows(cutting_plan)
-    html_content = render_template("exports/cutting_plan_pdf.html", rows=rows)
+    html_content = render_template(
+        "exports/cutting_plan_pdf.html",
+        pages=_group_cutting_plan_pages(rows),
+    )
 
     if HTML is not None:
         try:
