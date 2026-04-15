@@ -231,12 +231,15 @@ input.btn {
 .cp-details-table {
   margin-bottom: 0;
   table-layout: fixed;
+  font-size: 14px;
 }
 
 .cp-details-table th,
 .cp-details-table td {
   padding: .62rem .7rem;
   vertical-align: middle;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .cp-details-table th {
@@ -249,6 +252,7 @@ input.btn {
 
 .cp-details-table td {
   width: 34%;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
