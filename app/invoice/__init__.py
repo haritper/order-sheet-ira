@@ -1,0 +1,2 @@
+"""Invoice module package."""
+

@@ -35,6 +35,8 @@ def create_app(config_object=None):
     from app.exports.routes import exports_bp
     from app.admin.routes import admin_bp
     from app.customer.routes import customer_bp
+    from app.work_timing.routes import work_timing_bp
+    from app.invoice.routes import invoice_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(orders_bp)
@@ -42,6 +44,8 @@ def create_app(config_object=None):
     app.register_blueprint(exports_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(customer_bp)
+    app.register_blueprint(work_timing_bp)
+    app.register_blueprint(invoice_bp)
     app.register_blueprint(pricing_bp)
     init_pricing_module(app)
     _seed_default_users(app)
@@ -157,6 +161,19 @@ def _register_cli(app):
     def seed_default_users():
         _seed_default_users(app)
         print("Seeded default admin and operator users.")
+
+    @app.cli.command("work-timing-check")
+    def work_timing_check():
+        from app.work_timing.services import run_work_timing_overdue_check
+
+        summary = run_work_timing_overdue_check()
+        print(
+            "work_timing_check scanned={scanned} giri_sent={giri_sent} md_sent={md_sent}".format(
+                scanned=int(summary.get("scanned", 0)),
+                giri_sent=int(summary.get("giri_sent", 0)),
+                md_sent=int(summary.get("md_sent", 0)),
+            )
+        )
 
 
 def _register_template_context(app):

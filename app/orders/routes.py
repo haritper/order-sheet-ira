@@ -74,6 +74,7 @@ from app.orders.services import (
 )
 from app.exports.services import collect_plan_render_stats, render_order_pdf, save_plan_pdf
 from app.pricing_integration.integration import ingest_production_plan_for_order
+from app.work_timing.services import ensure_work_timing_entry
 from app.storage import (
     ORDER_DOCUMENT_SECTION,
     delete_order_storage,
@@ -1561,6 +1562,7 @@ def verify_order(order_id):
                 flow["production_plan_attachment_id"] = attachment.id
                 state["flow"] = flow
                 save_checklist_state(order, state)
+                ensure_work_timing_entry(order)
                 db.session.commit()
 
                 try:

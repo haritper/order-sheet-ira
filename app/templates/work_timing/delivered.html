@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Delivered Orders Module</title>
+    <link rel="stylesheet" href="{{ url_for('pricing.static', filename='pricing/style.css') }}">
+    <style>
+      .work-timing-page .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .work-timing-page .content {
+        padding: 1rem 1.25rem;
+        gap: 0.75rem;
+        align-content: start;
+      }
+
+      .work-timing-page .panel {
+        padding: 1rem 1.1rem;
+      }
+
+      .work-timing-page .title-strip {
+        margin: 0;
+        padding: 0.7rem 1rem;
+      }
+
+      .work-timing-page .title-strip h2 {
+        margin: 0;
+        line-height: 1.1;
+      }
+
+      .work-timing-page .title-strip-left {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+      }
+
+      .work-timing-page .inline-logo {
+        width: 4.8rem;
+        height: 2rem;
+        object-fit: contain;
+      }
+
+      .work-timing-page .sheet-tabs {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 0.45rem;
+      }
+
+      .work-timing-page .sheet-tab {
+        text-decoration: none;
+        border: 1px solid var(--line);
+        border-bottom: 0;
+        border-radius: 0.7rem 0.7rem 0 0;
+        padding: 0.48rem 0.9rem;
+        background: #eef0ff;
+        color: var(--muted);
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      .work-timing-page .sheet-tab.active {
+        background: #ffffff;
+        color: var(--ink);
+      }
+
+      .work-timing-page .filter-row {
+        display: flex;
+        align-items: end;
+        gap: 0.7rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.9rem;
+      }
+
+      .work-timing-page .filter-field {
+        min-width: 170px;
+      }
+
+      .work-timing-page .filter-field.is-hidden {
+        display: none;
+      }
+
+      .work-timing-page .filter-label {
+        display: block;
+        margin-bottom: 0.3rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body class="work-timing-page">
+    <div class="shell">
+      <main class="content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <section class="panel title-strip">
+          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+            <div class="title-strip-left">
+              <img class="inline-logo" src="{{ url_for('pricing.static', filename='pricing/new-logo.avif') }}" alt="IRA logo">
+              <h2>Time and Action (T&amp;A)</h2>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div class="sheet-tabs" role="tablist" aria-label="Order sheets">
+              <a class="sheet-tab" href="{{ url_for('work_timing.update_page') }}" role="tab" aria-selected="false">Order Status Grid</a>
+              <a class="sheet-tab active" href="{{ url_for('work_timing.delivered_page') }}" role="tab" aria-selected="true">Delivered</a>
+            </div>
+          </div>
+          <form method="get" action="{{ url_for('work_timing.delivered_page') }}" class="filter-row">
+            <div class="filter-field">
+              <label class="filter-label" for="period">Filter Period</label>
+              <select id="period" name="period">
+                <option value="" {% if not selected_period %}selected{% endif %}>All</option>
+                <option value="last_week" {% if selected_period == "last_week" %}selected{% endif %}>Last Week</option>
+                <option value="last_month" {% if selected_period == "last_month" %}selected{% endif %}>Last Month</option>
+                <option value="custom" {% if selected_period == "custom" %}selected{% endif %}>Custom Date</option>
+              </select>
+            </div>
+            <div class="filter-field js-custom-date-field">
+              <label class="filter-label" for="date_from">From</label>
+              <input id="date_from" type="date" name="date_from" value="{{ date_from or '' }}">
+            </div>
+            <div class="filter-field js-custom-date-field">
+              <label class="filter-label" for="date_to">To</label>
+              <input id="date_to" type="date" name="date_to" value="{{ date_to or '' }}">
+            </div>
+            <button class="button small" type="submit">Apply Filter</button>
+          </form>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Customer Name</th>
+                  <th>Status</th>
+                  <th>Delivered On</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if entries %}
+                  {% for entry in entries %}
+                  <tr>
+                    <td><strong>{{ entry.order_code }}</strong></td>
+                    <td>{{ entry.customer_name }}</td>
+                    <td><span class="badge">DELIVERED</span></td>
+                    <td>{{ entry.updated_at.strftime('%Y-%m-%d %H:%M') if entry.updated_at else '-' }}</td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                <tr>
+                  <td colspan="4" class="muted">No delivered orders yet.</td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script>
+      (function () {
+        var periodSelect = document.getElementById("period");
+        var customDateFields = document.querySelectorAll(".js-custom-date-field");
+        var fromInput = document.getElementById("date_from");
+        var toInput = document.getElementById("date_to");
+        if (!periodSelect) return;
+
+        function syncCustomDateVisibility() {
+          var isCustom = (periodSelect.value || "") === "custom";
+          customDateFields.forEach(function (field) {
+            if (isCustom) {
+              field.classList.remove("is-hidden");
+            } else {
+              field.classList.add("is-hidden");
+            }
+          });
+          if (fromInput) fromInput.disabled = !isCustom;
+          if (toInput) toInput.disabled = !isCustom;
+        }
+
+        periodSelect.addEventListener("change", syncCustomDateVisibility);
+        syncCustomDateVisibility();
+      })();
+    </script>
+  </body>
+</html>

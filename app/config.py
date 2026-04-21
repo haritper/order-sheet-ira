@@ -75,6 +75,12 @@ class Config:
         "PRICING_EMPLOYEE_PASSWORD",
         "ChangeMe123!",
     )
+    WORK_TIMING_ALERT_MODE = os.environ.get("WORK_TIMING_ALERT_MODE", "log")
+    WORK_TIMING_GIRI_CONTACT = os.environ.get("WORK_TIMING_GIRI_CONTACT", "")
+    WORK_TIMING_MD_CONTACT = os.environ.get("WORK_TIMING_MD_CONTACT", "")
+    WORK_TIMING_WEBHOOK_URL = os.environ.get("WORK_TIMING_WEBHOOK_URL", "")
+    WORK_TIMING_WEBHOOK_TOKEN = os.environ.get("WORK_TIMING_WEBHOOK_TOKEN", "")
+    WORK_TIMING_WEBHOOK_TIMEOUT_SECONDS = int(os.environ.get("WORK_TIMING_WEBHOOK_TIMEOUT_SECONDS", "15"))
 
 
 class TestConfig(Config):

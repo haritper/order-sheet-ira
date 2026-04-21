@@ -127,6 +127,12 @@ class Order(TimestampMixin, db.Model):
         "Attachment", back_populates="order", cascade="all, delete-orphan"
     )
     audits = db.relationship("OrderAuditLog", back_populates="order", cascade="all, delete-orphan")
+    work_timing_entry = db.relationship(
+        "WorkTimingEntry",
+        back_populates="order",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     order_check = db.relationship(
         "OrderCheck",
         back_populates="order",
@@ -393,3 +399,53 @@ class OrderNumberCounter(TimestampMixin, db.Model):
     pod_next_number = db.Column(db.Integer, nullable=False, default=1)
     ira_next_number = db.Column(db.Integer, nullable=False, default=1)
     sequence_width = db.Column(db.Integer, nullable=False, default=3)
+
+
+class WorkTimingEntry(TimestampMixin, db.Model):
+    __tablename__ = "work_timing_entries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(
+        db.Integer,
+        db.ForeignKey("orders.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    order_code = db.Column(db.String(120), nullable=False, index=True)
+    customer_name = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.String(50), nullable=False, index=True)
+    status_updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    deadline_at = db.Column(db.DateTime, nullable=True, index=True)
+    escalation_state = db.Column(db.String(20), nullable=False, default="NONE", index=True)
+    giri_alert_sent_at = db.Column(db.DateTime, nullable=True)
+    md_alert_sent_at = db.Column(db.DateTime, nullable=True)
+
+    order = db.relationship("Order", back_populates="work_timing_entry")
+    alert_events = db.relationship(
+        "WorkTimingAlertEvent",
+        back_populates="entry",
+        cascade="all, delete-orphan",
+    )
+
+
+class WorkTimingAlertEvent(db.Model):
+    __tablename__ = "work_timing_alert_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    entry_id = db.Column(
+        db.Integer,
+        db.ForeignKey("work_timing_entries.id"),
+        nullable=False,
+        index=True,
+    )
+    target = db.Column(db.String(16), nullable=False, index=True)
+    event_type = db.Column(db.String(40), nullable=False, index=True)
+    status_snapshot = db.Column(db.String(50), nullable=False)
+    deadline_snapshot = db.Column(db.DateTime, nullable=True)
+    delivery_mode = db.Column(db.String(20), nullable=False, default="log", index=True)
+    delivery_result = db.Column(db.String(120), nullable=False, default="logged")
+    provider_message_id = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    entry = db.relationship("WorkTimingEntry", back_populates="alert_events")

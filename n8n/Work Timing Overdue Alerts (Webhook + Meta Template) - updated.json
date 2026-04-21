@@ -1,0 +1,361 @@
+﻿{
+    "name":  "Work Timing Overdue Alerts (Webhook + Meta Template) - work_timing_alert",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "work-timing-alert",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "ccd6d1f3-b40d-4ad1-a934-fe78b61808e5",
+                      "name":  "Webhook Alert POST",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -2992,
+                                       368
+                                   ],
+                      "webhookId":  "c6b0c7ee-e4a5-40ac-80b3-b6631c537583"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const req = $input.first().json || {};\nconst expected = String($env.APP_INTERNAL_TOKEN || \u0027\u0027).trim();\nconst headers = req.headers || {};\nconst rawToken = headers[\u0027x-internal-token\u0027] || headers[\u0027X-Internal-Token\u0027] || headers[\u0027x_internal_token\u0027] || \u0027\u0027;\nconst token = Array.isArray(rawToken) ? String(rawToken[0] || \u0027\u0027).trim() : String(rawToken || \u0027\u0027).trim();\n\nif (!expected) {\n  return [{ json: { ok: false, statusCode: 500, error: \u0027APP_INTERNAL_TOKEN is not configured in n8n\u0027 } }];\n}\n\nif (token !== expected) {\n  return [{ json: { ok: false, statusCode: 403, error: \u0027Unauthorized token\u0027 } }];\n}\n\nreturn [{ json: { ok: true, statusCode: 200, payload: req.body || req } }];"
+                                     },
+                      "id":  "74c809a7-ac13-4b17-a250-ea7c9a27aa4c",
+                      "name":  "Validate Internal Token",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -2752,
+                                       368
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  1
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "cond-auth-ok",
+                                                                                   "leftValue":  "={{ $json.ok }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "73e8a958-c3b2-4c7e-90dc-2f8e01fb768f",
+                      "name":  "Is Authorized?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       -2512,
+                                       368
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { ok: false, error: $json.error || \u0027Unauthorized\u0027 } }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ Number($json.statusCode || 403) }}"
+                                                     }
+                                     },
+                      "id":  "7a0cd6c6-b2e0-463c-aed9-d892ffb2c382",
+                      "name":  "Respond Unauthorized",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       -2288,
+                                       496
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const incoming = $input.first().json || {};\nconst payload = incoming.payload || {};\n\nconst required = [\u0027alert_id\u0027, \u0027entry_id\u0027, \u0027order_code\u0027, \u0027customer_name\u0027, \u0027status\u0027, \u0027deadline_at\u0027, \u0027checked_at\u0027, \u0027target\u0027, \u0027contact\u0027];\nconst missing = required.filter((k) =\u003e payload[k] === undefined || payload[k] === null || String(payload[k]).trim() === \u0027\u0027);\nif (missing.length \u003e 0) {\n  return [{ json: { ok: false, statusCode: 400, error: `Missing required fields: ${missing.join(\u0027, \u0027)}` } }];\n}\n\nconst target = String(payload.target || \u0027\u0027).trim().toUpperCase();\nif (![\u0027GIRI\u0027, \u0027MD\u0027].includes(target)) {\n  return [{ json: { ok: false, statusCode: 400, error: \u0027Invalid target. Allowed values: GIRI, MD\u0027 } }];\n}\n\nconst normalized = {\n  alert_id: String(payload.alert_id),\n  entry_id: Number(payload.entry_id),\n  order_code: String(payload.order_code),\n  customer_name: String(payload.customer_name),\n  status: String(payload.status),\n  deadline_at: String(payload.deadline_at),\n  checked_at: String(payload.checked_at),\n  target,\n  contact: String(payload.contact).replace(/[^0-9]/g, \u0027\u0027)\n};\n\nif (!normalized.contact) {\n  return [{ json: { ok: false, statusCode: 400, error: \u0027Invalid contact format\u0027 } }];\n}\n\nreturn [{ json: { ok: true, statusCode: 200, normalized } }];"
+                                     },
+                      "id":  "c90f6584-1a75-4327-84ef-4803a03b8b47",
+                      "name":  "Normalize Alert Payload",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -2272,
+                                       272
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  1
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "cond-payload-ok",
+                                                                                   "leftValue":  "={{ $json.ok }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "781490bc-8454-47c4-bb1a-bf69f6695c90",
+                      "name":  "Is Valid Payload?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       -2032,
+                                       272
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { ok: false, error: $json.error || \u0027Bad request\u0027 } }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ Number($json.statusCode || 400) }}"
+                                                     }
+                                     },
+                      "id":  "5ad1c0e5-c440-4416-a021-bf29f3e6cac6",
+                      "name":  "Respond Bad Request",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       -1808,
+                                       400
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const normalized = $input.first().json.normalized;\n\nconst templateName = \u0027work_timing_alert\u0027;\nconst deadlineDate = new Date(normalized.deadline_at);\nconst checkedDate = new Date(normalized.checked_at);\n\nconst safeDeadline = Number.isNaN(deadlineDate.getTime()) ? null : deadlineDate;\nconst safeChecked = Number.isNaN(checkedDate.getTime()) ? new Date() : checkedDate;\n\nconst overdueMs = safeDeadline ? Math.max(0, safeChecked.getTime() - safeDeadline.getTime()) : 0;\nconst overdueMinutes = Math.floor(overdueMs / 60000);\nconst overdueDays = Math.floor(overdueMinutes / 1440);\nconst overdueHours = Math.floor((overdueMinutes % 1440) / 60);\nconst overdueMins = overdueMinutes % 60;\n\nlet overdueText = \u00270m\u0027;\nif (overdueDays \u003e 0) {\n  overdueText = `${overdueDays}d ${overdueHours}h ${overdueMins}m`;\n} else if (overdueHours \u003e 0) {\n  overdueText = `${overdueHours}h ${overdueMins}m`;\n} else {\n  overdueText = `${overdueMins}m`;\n}\n\nconst target = String(normalized.target || \u0027\u0027).toUpperCase();\nconst recipientName = target === \u0027GIRI\u0027 ? \u0027Giri\u0027 : \u0027MD\u0027;\nconst escalationLevel = target === \u0027GIRI\u0027 ? \u0027Level 1 - GIRI\u0027 : \u0027Level 2 - MD\u0027;\nconst roleInstruction = target === \u0027GIRI\u0027\n  ? \u0027This order has stayed in the same state beyond SLA. Please take immediate action and update it.\u0027\n  : \u0027This order is still in the same state; if this continues, planned T\u0026A cannot be achieved.\u0027;\n\nconst deadlineText = safeDeadline ? safeDeadline.toISOString().replace(\u0027T\u0027, \u0027 \u0027).replace(\u0027.000Z\u0027, \u0027 UTC\u0027) : String(normalized.deadline_at || \u0027-\u0027);\n\nconst requestBody = {\n  messaging_product: \u0027whatsapp\u0027,\n  to: normalized.contact,\n  type: \u0027template\u0027,\n  template: {\n    name: templateName,\n    language: { code: \u0027en_US\u0027 },\n    components: [\n      {\n        type: \u0027body\u0027,\n        parameters: [\n          { type: \u0027text\u0027, text: recipientName },\n          { type: \u0027text\u0027, text: normalized.order_code },\n          { type: \u0027text\u0027, text: normalized.customer_name },\n          { type: \u0027text\u0027, text: normalized.status },\n          { type: \u0027text\u0027, text: deadlineText },\n          { type: \u0027text\u0027, text: overdueText },\n          { type: \u0027text\u0027, text: escalationLevel },\n          { type: \u0027text\u0027, text: roleInstruction }\n        ]\n      }\n    ]\n  }\n};\n\nreturn [{\n  json: {\n    ok: true,\n    statusCode: 200,\n    normalized,\n    requestBody\n  }\n}];"
+                                     },
+                      "id":  "47483132-2140-4f1e-850f-a25a9f27c025",
+                      "name":  "Build Template Request",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1792,
+                                       176
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://graph.facebook.com/v19.0/906383375891144/messages",
+                                         "authentication":  "genericCredentialType",
+                                         "genericAuthType":  "httpHeaderAuth",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Content-Type",
+                                                                                         "value":  "application/json"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ $json.requestBody }}",
+                                         "options":  {
+                                                         "response":  {
+                                                                          "response":  {
+                                                                                           "fullResponse":  true,
+                                                                                           "neverError":  true
+                                                                                       }
+                                                                      }
+                                                     }
+                                     },
+                      "id":  "ad371560-a507-49bd-a550-9381a5cf33f9",
+                      "name":  "Send WhatsApp Template",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       -1552,
+                                       176
+                                   ],
+                      "credentials":  {
+                                          "httpHeaderAuth":  {
+                                                                 "id":  "jaBW3J6lwwGV1yPz",
+                                                                 "name":  "Whatsapp"
+                                                             }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const full = $input.first().json || {};\nconst statusCode = Number(full.statusCode || full.code || 502);\nconst body = full.body || {};\nconst ok = statusCode \u003e= 200 \u0026\u0026 statusCode \u003c 300 \u0026\u0026 !body.error;\nconst providerMessageId = body?.messages?.[0]?.id || body?.id || \u0027\u0027;\n\nreturn [{\n  json: {\n    ok,\n    statusCode: ok ? 200 : statusCode,\n    delivery_mode: \u0027whatsapp_template\u0027,\n    delivery_result: ok ? \u0027sent\u0027 : `failed_http_${statusCode}`,\n    provider_message_id: providerMessageId || null,\n    error: ok ? null : (body?.error?.message || full.statusMessage || \u0027Template send failed\u0027)\n  }\n}];"
+                                     },
+                      "id":  "daaea4ed-0767-460e-8d20-0b66e31d426c",
+                      "name":  "Build Delivery Ack",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1312,
+                                       176
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ $json }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ Number($json.statusCode || 200) }}"
+                                                     }
+                                     },
+                      "id":  "99d77840-d4a1-4313-beae-b1f4a9b2499b",
+                      "name":  "Respond Result",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       -1088,
+                                       176
+                                   ]
+                  }
+              ],
+    "pinData":  {
+
+                },
+    "connections":  {
+                        "Webhook Alert POST":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Validate Internal Token",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Validate Internal Token":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Is Authorized?",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Is Authorized?":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Normalize Alert Payload",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ],
+                                                            [
+                                                                {
+                                                                    "node":  "Respond Unauthorized",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Normalize Alert Payload":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Is Valid Payload?",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Is Valid Payload?":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Build Template Request",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ],
+                                                               [
+                                                                   {
+                                                                       "node":  "Respond Bad Request",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Build Template Request":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Send WhatsApp Template",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Send WhatsApp Template":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Build Delivery Ack",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Build Delivery Ack":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "Respond Result",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               }
+                    },
+    "active":  true,
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "binaryMode":  "separate"
+                 },
+    "versionId":  "10f2399b-fa6a-4f30-96a3-773d1f83c3ea",
+    "meta":  {
+                 "instanceId":  "7f96c09f2cb8bf0286da8a1b8968dbb02408be16e482ab35068c1285dc3106cb"
+             },
+    "id":  "NNDlWccLSUYGCOhc",
+    "tags":  [
+
+             ]
+}

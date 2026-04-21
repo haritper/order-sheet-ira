@@ -1,0 +1,2 @@
+"""Work timing management module."""
+

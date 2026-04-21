@@ -1,0 +1,343 @@
+{
+  "name": "Work Timing Overdue Alerts (Webhook + Meta Template)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "work-timing-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-post",
+      "name": "Webhook Alert POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $input.first().json || {};\nconst expected = String($env.APP_INTERNAL_TOKEN || '').trim();\nconst headers = req.headers || {};\nconst rawToken = headers['x-internal-token'] || headers['X-Internal-Token'] || headers['x_internal_token'] || '';\nconst token = Array.isArray(rawToken) ? String(rawToken[0] || '').trim() : String(rawToken || '').trim();\n\nif (!expected) {\n  return [{ json: { ok: false, statusCode: 500, error: 'APP_INTERNAL_TOKEN is not configured in n8n' } }];\n}\n\nif (token !== expected) {\n  return [{ json: { ok: false, statusCode: 403, error: 'Unauthorized token' } }];\n}\n\nreturn [{ json: { ok: true, statusCode: 200, payload: req.body || req } }];"
+      },
+      "id": "node-validate-token",
+      "name": "Validate Internal Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-auth-ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-authorized",
+      "name": "Is Authorized?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        740,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Unauthorized' } }}",
+        "options": {
+          "responseCode": "={{ Number($json.statusCode || 403) }}"
+        }
+      },
+      "id": "node-respond-unauthorized",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        970,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first().json || {};\nconst payload = incoming.payload || {};\n\nconst required = ['alert_id', 'entry_id', 'order_code', 'customer_name', 'status', 'deadline_at', 'checked_at', 'target', 'contact'];\nconst missing = required.filter((k) => payload[k] === undefined || payload[k] === null || String(payload[k]).trim() === '');\nif (missing.length > 0) {\n  return [{ json: { ok: false, statusCode: 400, error: `Missing required fields: ${missing.join(', ')}` } }];\n}\n\nconst target = String(payload.target || '').trim().toUpperCase();\nif (!['GIRI', 'MD'].includes(target)) {\n  return [{ json: { ok: false, statusCode: 400, error: 'Invalid target. Allowed values: GIRI, MD' } }];\n}\n\nconst normalized = {\n  alert_id: String(payload.alert_id),\n  entry_id: Number(payload.entry_id),\n  order_code: String(payload.order_code),\n  customer_name: String(payload.customer_name),\n  status: String(payload.status),\n  deadline_at: String(payload.deadline_at),\n  checked_at: String(payload.checked_at),\n  target,\n  contact: String(payload.contact).replace(/[^0-9]/g, '')\n};\n\nif (!normalized.contact) {\n  return [{ json: { ok: false, statusCode: 400, error: 'Invalid contact format' } }];\n}\n\nreturn [{ json: { ok: true, statusCode: 200, normalized } }];"
+      },
+      "id": "node-normalize-payload",
+      "name": "Normalize Alert Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        170
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-payload-ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-valid-payload",
+      "name": "Is Valid Payload?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1220,
+        170
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: false, error: $json.error || 'Bad request' } }}",
+        "options": {
+          "responseCode": "={{ Number($json.statusCode || 400) }}"
+        }
+      },
+      "id": "node-respond-bad-request",
+      "name": "Respond Bad Request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalized = $input.first().json.normalized;\nconst graphVersion = String($env.META_GRAPH_VERSION || 'v19.0').trim();\nconst phoneNumberId = String($env.WHATSAPP_PHONE_NUMBER_ID || '').trim();\nif (!phoneNumberId) {\n  return [{ json: { ok: false, statusCode: 500, error: 'WHATSAPP_PHONE_NUMBER_ID is not configured' } }];\n}\n\nconst templateName = normalized.target === 'GIRI'\n  ? String($env.WORK_TIMING_TEMPLATE_GIRI || 'work_timing_overdue_giri_v1')\n  : String($env.WORK_TIMING_TEMPLATE_MD || 'work_timing_overdue_md_v1');\n\nconst requestBody = {\n  messaging_product: 'whatsapp',\n  to: normalized.contact,\n  type: 'template',\n  template: {\n    name: templateName,\n    language: { code: 'en_US' },\n    components: [\n      {\n        type: 'body',\n        parameters: [\n          { type: 'text', text: normalized.order_code },\n          { type: 'text', text: normalized.customer_name },\n          { type: 'text', text: normalized.status },\n          { type: 'text', text: normalized.deadline_at },\n          { type: 'text', text: normalized.target }\n        ]\n      }\n    ]\n  }\n};\n\nreturn [{\n  json: {\n    ok: true,\n    statusCode: 200,\n    normalized,\n    graphUrl: `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`,\n    requestBody\n  }\n}];"
+      },
+      "id": "node-build-template-request",
+      "name": "Build Template Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.graphUrl }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {
+          "ignoreResponseCode": true,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "node-send-whatsapp-template",
+      "name": "Send WhatsApp Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1700,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const full = $input.first().json || {};\nconst statusCode = Number(full.statusCode || full.code || 502);\nconst body = full.body || {};\nconst ok = statusCode >= 200 && statusCode < 300 && !body.error;\nconst providerMessageId = body?.messages?.[0]?.id || body?.id || '';\n\nreturn [{\n  json: {\n    ok,\n    statusCode: ok ? 200 : statusCode,\n    delivery_mode: 'whatsapp_template',\n    delivery_result: ok ? 'sent' : `failed_http_${statusCode}`,\n    provider_message_id: providerMessageId || null,\n    error: ok ? null : (body?.error?.message || full.statusMessage || 'Template send failed')\n  }\n}];"
+      },
+      "id": "node-build-ack",
+      "name": "Build Delivery Ack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": "={{ Number($json.statusCode || 200) }}"
+        }
+      },
+      "id": "node-respond-result",
+      "name": "Respond Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2170,
+        80
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Alert POST": {
+      "main": [
+        [
+          {
+            "node": "Validate Internal Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Internal Token": {
+      "main": [
+        [
+          {
+            "node": "Is Authorized?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Authorized?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Alert Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Alert Payload": {
+      "main": [
+        [
+          {
+            "node": "Is Valid Payload?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid Payload?": {
+      "main": [
+        [
+          {
+            "node": "Build Template Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Bad Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Template Request": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp Template": {
+      "main": [
+        [
+          {
+            "node": "Build Delivery Ack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Delivery Ack": {
+      "main": [
+        [
+          {
+            "node": "Respond Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "work_timing_overdue_alert_webhook",
+  "tags": []
+}

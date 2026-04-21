@@ -15,8 +15,14 @@ from app.orders.services import bootstrap_order_rows
 
 
 @pytest.fixture()
-def app():
+def app(tmp_path):
     app = create_app(TestConfig)
+    upload_dir = tmp_path / "uploads"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    app.config["UPLOAD_DIR"] = str(upload_dir)
+    app.config["PDF_OUTPUT_DIR"] = str(pdf_dir)
     with app.app_context():
         db.create_all()
         admin = User(email="admin@example.com", full_name="Admin", role=Role.ADMIN.value)

@@ -1,0 +1,35 @@
+{
+  "templates": [
+    {
+      "name": "work_timing_overdue_giri_v1",
+      "language": "en_US",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "BODY",
+          "text": "Order {{1}} ({{2}}) is overdue at status {{3}}. Deadline was {{4}}. Escalation: {{5}}. Please update immediately."
+        }
+      ]
+    },
+    {
+      "name": "work_timing_overdue_md_v1",
+      "language": "en_US",
+      "category": "UTILITY",
+      "components": [
+        {
+          "type": "BODY",
+          "text": "Order {{1}} ({{2}}) is overdue at status {{3}}. Deadline was {{4}}. Escalation: {{5}}. Please update immediately."
+        }
+      ]
+    }
+  ],
+  "create_template_api_example": {
+    "method": "POST",
+    "url": "https://graph.facebook.com/v19.0/<WHATSAPP_BUSINESS_ACCOUNT_ID>/message_templates",
+    "headers": {
+      "Authorization": "Bearer <WHATSAPP_ACCESS_TOKEN>",
+      "Content-Type": "application/json"
+    },
+    "body_source": "Use each object from templates[] as request body."
+  }
+}
