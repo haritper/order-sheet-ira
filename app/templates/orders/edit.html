@@ -84,7 +84,7 @@
     <label id="jacket-type-wrap" style="display:none;">Type
       <select name="jacket_type" id="jacket-type-select">
         <option value="Full Zipper">Full Zipper</option>
-        <option value="Quater Zipper">Quater Zipper</option>
+        <option value="Quarter Zipper">Quarter Zipper</option>
       </select>
     </label>
     <label id="hoodie-type-wrap" style="display:none;">Type
@@ -239,7 +239,7 @@
           <td>{{ spec.logo_positions if spec else '' }}</td>
           <td>
             <form method="post" action="{{ url_for('orders.delete_config', order_id=order.id, item_id=item.id) }}">
-              <button type="submit">Delete</button>
+              <button type="submit" class="btn btn-danger btn-small">Delete</button>
             </form>
           </td>
         </tr>
@@ -337,7 +337,7 @@
     front: [
       { id: 'front_left_chest_logo', label: 'Left Chest Logo' },
       { id: 'front_right_chest_logo', label: 'Right Chest Logo' },
-      { id: 'front_sponser_logo', label: 'Sponser Logo' },
+      { id: 'front_sponser_logo', label: 'Sponsor Logo' },
       { id: 'front_front_side_logo', label: 'Front Side Logo' },
       { id: 'front_right_side_logo', label: 'Right Side Logo' },
       { id: 'front_left_side_logo', label: 'Left Side Logo' },
@@ -815,7 +815,7 @@
       styleTypeSelect.disabled = true;
       styleTypeSelect.style.display = 'none';
     }
-    if (isJacketWithType && jacketType === 'Quater Zipper') {
+    if (isJacketWithType && (jacketType === 'Quarter Zipper' || jacketType === 'Quater Zipper')) {
       styleTypeInput.readOnly = true;
       styleTypeInput.value = 'Prime Solid';
     } else if (!(isHoodieWithType && hoodieType === 'Hoodie')) {
@@ -1079,7 +1079,7 @@
         <td>{{ p.tshirt_size }} x {{ p.tshirt_qty }}</td><td>{{ p.trouser_size }} x {{ p.trouser_qty }}</td>
         <td>
           <form method="post" action="{{ url_for('players.delete_player', order_id=order.id, player_id=p.id) }}">
-            <button type="submit">Delete</button>
+            <button type="submit" class="btn btn-danger btn-small">Delete</button>
           </form>
         </td>
       </tr>

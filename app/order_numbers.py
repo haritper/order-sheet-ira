@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from app.extensions import db
 from app.models import Order, OrderAssignment, OrderNumberCounter
@@ -15,8 +15,15 @@ def team_slug(team_name: str) -> str:
 def get_or_create_counter_settings() -> OrderNumberCounter:
     row = OrderNumberCounter.query.order_by(OrderNumberCounter.id.asc()).first()
     if row is not None:
+        if getattr(row, "invoice_next_number", None) in (None, 0):
+            row.invoice_next_number = 1
         return row
-    row = OrderNumberCounter(pod_next_number=1, ira_next_number=1, sequence_width=3)
+    row = OrderNumberCounter(
+        pod_next_number=1,
+        ira_next_number=1,
+        invoice_next_number=1,
+        sequence_width=3,
+    )
     db.session.add(row)
     db.session.flush()
     return row
@@ -141,3 +148,21 @@ def get_or_assign_ira_order_id(order: Order) -> str:
             settings.ira_next_number = seq + 1
             return candidate
         seq += 1
+
+
+def peek_invoice_number(*, order_date: date | None = None) -> str:
+    settings = get_or_create_counter_settings()
+    resolved = order_date or datetime.now().date()
+    year = int(resolved.year)
+    sequence = int(getattr(settings, "invoice_next_number", 1) or 1)
+    return f"INV-{year}-{sequence:04d}"
+
+
+def consume_invoice_number(*, order_date: date | None = None) -> str:
+    settings = get_or_create_counter_settings()
+    resolved = order_date or datetime.now().date()
+    year = int(resolved.year)
+    sequence = int(getattr(settings, "invoice_next_number", 1) or 1)
+    invoice_number = f"INV-{year}-{sequence:04d}"
+    settings.invoice_next_number = sequence + 1
+    return invoice_number

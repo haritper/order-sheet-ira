@@ -54,7 +54,16 @@ def load_checklist_state(order) -> dict:
         "flow": {
             "customer_plan_generated": False,
             "customer_plan_attachment_id": None,
+            "customer_plan_last_sent_at": None,
+            "customer_plan_last_send_status": "",
+            "customer_plan_last_send_error": "",
+            "customer_plan_last_sent_attachment_id": None,
             "customer_approved": False,
+            "customer_approved_at": None,
+            "customer_approval_source": "",
+            "invoice_receipt_uploaded": False,
+            "invoice_receipt_attachment_id": None,
+            "invoice_receipt_filename": "",
             "shipping_address": "",
             "city": "",
             "state": "",
@@ -83,7 +92,24 @@ def load_checklist_state(order) -> dict:
                         {
                             "customer_plan_generated": bool(flow.get("customer_plan_generated", False)),
                             "customer_plan_attachment_id": flow.get("customer_plan_attachment_id"),
+                            "customer_plan_last_sent_at": flow.get("customer_plan_last_sent_at"),
+                            "customer_plan_last_send_status": str(
+                                flow.get("customer_plan_last_send_status", "") or ""
+                            ).strip(),
+                            "customer_plan_last_send_error": str(
+                                flow.get("customer_plan_last_send_error", "") or ""
+                            ).strip(),
+                            "customer_plan_last_sent_attachment_id": flow.get(
+                                "customer_plan_last_sent_attachment_id"
+                            ),
                             "customer_approved": bool(flow.get("customer_approved", False)),
+                            "customer_approved_at": flow.get("customer_approved_at"),
+                            "customer_approval_source": str(
+                                flow.get("customer_approval_source", "") or ""
+                            ).strip(),
+                            "invoice_receipt_uploaded": bool(flow.get("invoice_receipt_uploaded", False)),
+                            "invoice_receipt_attachment_id": flow.get("invoice_receipt_attachment_id"),
+                            "invoice_receipt_filename": str(flow.get("invoice_receipt_filename", "") or "").strip(),
                             "shipping_address": str(flow.get("shipping_address", "") or "").strip(),
                             "city": str(flow.get("city", "") or "").strip(),
                             "state": str(flow.get("state", "") or "").strip(),
@@ -123,7 +149,16 @@ def load_checklist_state(order) -> dict:
             "flow": {
                 "customer_plan_generated": False,
                 "customer_plan_attachment_id": None,
+                "customer_plan_last_sent_at": None,
+                "customer_plan_last_send_status": "",
+                "customer_plan_last_send_error": "",
+                "customer_plan_last_sent_attachment_id": None,
                 "customer_approved": False,
+                "customer_approved_at": None,
+                "customer_approval_source": "",
+                "invoice_receipt_uploaded": False,
+                "invoice_receipt_attachment_id": None,
+                "invoice_receipt_filename": "",
                 "shipping_address": "",
                 "city": "",
                 "state": "",
@@ -142,13 +177,11 @@ def load_checklist_state(order) -> dict:
 def save_checklist_state(order, state: dict):
     state["updated_at"] = datetime.utcnow().isoformat()
     order_check = getattr(order, "order_check", None)
-    if order_check is None:
-        return
-    order_check.current_page = int(state.get("current_page", 1) or 1)
+    if order_check is not None:
+        order_check.current_page = int(state.get("current_page", 1) or 1)
     # Keep dynamic_responses as the canonical merged checkbox store set by routes.
     # Do not overwrite it here with partial state["responses"], otherwise
     # previously checked dynamic fields get cleared when navigating steps.
-    path = checklist_state_path(order.id)
     save_order_text(
         order.id,
         ORDER_META_SECTION,

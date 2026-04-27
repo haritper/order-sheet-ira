@@ -1,7 +1,8 @@
 import io
 
 from app.extensions import db
-from app.models import Order, OrderAssignment, OrderAssignmentStatus, OrderStatus, Player, User
+from app.models import Attachment, Order, OrderAssignment, OrderAssignmentStatus, OrderStatus, Player, User
+from app.orders.check_state import get_or_create_order_check, set_parsed_json
 from app.orders.checklist_cutting import load_checklist_state, save_checklist_state
 from app.orders.services import bootstrap_order_rows
 
@@ -11,23 +12,19 @@ def test_login_required_redirect(client):
     assert resp.status_code == 302
 
 
-def test_create_order(auth_client):
-    resp = auth_client.post(
-        "/orders/new",
-        data={
-            "order_id": "ORDER-001",
-            "customer_name": "Test Customer",
-            "mobile": "+100000000",
-            "shipping_address": "Address",
-            "city": "City",
-            "zip_code": "12345",
-            "state": "State",
-            "country": "USA",
-        },
-        follow_redirects=True,
+def test_login_accepts_username_identifier(client):
+    resp = client.post(
+        "/login",
+        data={"username": "admin", "password": "Password123"},
+        follow_redirects=False,
     )
-    assert resp.status_code == 200
-    assert b"Step 2" in resp.data
+    assert resp.status_code == 302
+    assert "/orders" in resp.headers.get("Location", "")
+
+
+def test_admin_cannot_create_order(auth_client):
+    resp = auth_client.get("/orders/new")
+    assert resp.status_code == 403
 
 
 def test_csv_import_flow(app, auth_client):
@@ -184,7 +181,7 @@ def test_ai_import_replaces_with_valid_rows_even_when_some_errors(app, auth_clie
 
 def test_admin_assignment_generation(auth_client, app):
     with app.app_context():
-        operator = User.query.filter_by(email="giri@gmail.com").first()
+        operator = User.query.filter_by(email="giri").first()
         assert operator is not None
         data = {f"count_{operator.id}": "10"}
         for idx in range(10):
@@ -192,7 +189,7 @@ def test_admin_assignment_generation(auth_client, app):
 
     counters_resp = auth_client.post(
         "/admin/order-id-counters",
-        data={"pod_next_number": "2", "ira_next_number": "1"},
+        data={"pod_next_number": "2", "ira_next_number": "1", "invoice_next_number": "1"},
         follow_redirects=True,
     )
     assert counters_resp.status_code == 200
@@ -210,7 +207,7 @@ def test_admin_assignment_generation(auth_client, app):
 
 def test_operator_step1_dropdown_and_completion(app, operator_client):
     with app.app_context():
-        operator = User.query.filter_by(email="giri@gmail.com").first()
+        operator = User.query.filter_by(email="giri").first()
         assignment = OrderAssignment(
             order_code="POD-2026-APR-002-TEST-TEAM",
             team_name="TEST TEAM",
@@ -321,10 +318,60 @@ def test_production_plan_requires_invoice_receipt_when_toggle_enabled(app, auth_
         assert bool(flow.get("production_plan_generated", False)) is False
 
 
+def test_invoice_receipt_skip_is_blocked_when_required(app, auth_client):
+    with app.app_context():
+        order = Order(order_id="POD-2026-APR-100-RECEIPT", customer_name="Receipt Customer")
+        bootstrap_order_rows(order)
+        db.session.add(order)
+        db.session.commit()
+        oid = order.id
+
+        save_checklist_state(
+            order,
+            {
+                "flow": {
+                    "customer_plan_generated": True,
+                    "customer_plan_attachment_id": None,
+                    "customer_approved": True,
+                    "invoice_receipt_uploaded": False,
+                    "invoice_receipt_attachment_id": None,
+                    "invoice_receipt_filename": "",
+                    "shipping_address": "Addr",
+                    "city": "City",
+                    "state": "State",
+                    "zip_code": "12345",
+                    "country": "USA",
+                    "production_plan_generated": False,
+                    "production_plan_attachment_id": None,
+                }
+            },
+        )
+
+    app.config["INVOICE_RECEIPT_REQUIRED"] = True
+
+    resp = auth_client.post(
+        f"/orders/{oid}/checklist",
+        data={
+            "current_page": "2",
+            "set_invoice_receipt": "1",
+            "skip_invoice_receipt": "1",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invoice receipt is mandatory" in resp.data
+
+    with app.app_context():
+        refreshed = Order.query.get(oid)
+        state = load_checklist_state(refreshed)
+        flow = state.get("flow", {}) if isinstance(state, dict) else {}
+        assert bool(flow.get("invoice_receipt_uploaded", False)) is False
+
+
 def test_operator_cannot_access_other_operator_order(app, operator_client):
     with app.app_context():
-        owner = User.query.filter_by(email="giri@gmail.com").first()
-        other = User(email="subash@gmail.com", full_name="Subash", role="operator")
+        owner = User.query.filter_by(email="giri").first()
+        other = User(email="subash", full_name="Subash", role="operator")
         other.set_password("Password123")
         db.session.add(other)
         db.session.flush()
@@ -355,7 +402,7 @@ def test_operator_cannot_access_other_operator_order(app, operator_client):
 
 def test_admin_can_delete_order_with_assignment(app, auth_client):
     with app.app_context():
-        operator = User.query.filter_by(email="giri@gmail.com").first()
+        operator = User.query.filter_by(email="giri").first()
         order = Order(order_id="POD-2026-APR-060-DELETE", customer_name="Delete Customer")
         bootstrap_order_rows(order)
         db.session.add(order)
@@ -391,3 +438,174 @@ def test_admin_can_delete_order_with_assignment(app, auth_client):
         assert assignment is not None
         assert assignment.linked_order_id is None
         assert assignment.status == OrderAssignmentStatus.PENDING.value
+
+
+def _seed_customer_plan_ready_order(app, mobile=""):
+    with app.app_context():
+        order = Order(order_id="POD-2026-APR-CP-001", customer_name="Customer Plan User", mobile=mobile)
+        bootstrap_order_rows(order)
+        db.session.add(order)
+        db.session.flush()
+        check = get_or_create_order_check(order)
+        set_parsed_json(
+            check,
+            {
+                "quantity_comparison": {
+                    "mens_half_sleeve": {
+                        "M": {"overview": 1, "packing": 1, "status": "Match"}
+                    }
+                }
+            },
+        )
+        db.session.commit()
+        return int(order.id)
+
+
+def _customer_plan_generate_payload():
+    return {
+        "current_page": "2",
+        "generate_customer_plan": "1",
+        "order_id_verified": "on",
+        "enquiry_date_verified": "on",
+        "design_checked": "on",
+        "logos_checked": "on",
+        "gender_checked": "on",
+        "sleeve_type_checked": "on",
+        "names_numbers_sizes_checked": "on",
+        "quantity_checked": "on",
+    }
+
+
+def test_customer_plan_generate_triggers_webhook_and_saves_status(app, auth_client, monkeypatch):
+    app.config["AI_VERIFY_ENABLED"] = False
+    oid = _seed_customer_plan_ready_order(app, mobile="+919876543210")
+    monkeypatch.setattr("app.orders.routes._rebuild_garment_quantity_comparison", lambda order, parsed: None)
+
+    called = {"count": 0}
+
+    def _fake_webhook(**kwargs):
+        called["count"] += 1
+        assert kwargs["customer_mobile"] == "+919876543210"
+        return {"success": True, "status_code": 200, "message": "ok", "error": None}
+
+    monkeypatch.setattr("app.orders.routes.send_customer_plan_webhook", _fake_webhook)
+
+    resp = auth_client.post(
+        f"/orders/{oid}/checklist",
+        data=_customer_plan_generate_payload(),
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert called["count"] == 1
+
+    with app.app_context():
+        order = Order.query.get(oid)
+        state = load_checklist_state(order)
+        flow = state.get("flow", {}) if isinstance(state, dict) else {}
+        assert bool(flow.get("customer_plan_generated", False)) is True
+        assert str(flow.get("customer_plan_last_send_status", "")) == "success"
+        assert int(flow.get("customer_plan_last_sent_attachment_id", 0) or 0) > 0
+
+
+def test_customer_plan_generate_missing_mobile_opens_modal_then_generates(
+    app, auth_client, monkeypatch
+):
+    app.config["AI_VERIFY_ENABLED"] = False
+    oid = _seed_customer_plan_ready_order(app, mobile="")
+    monkeypatch.setattr("app.orders.routes._rebuild_garment_quantity_comparison", lambda order, parsed: None)
+
+    monkeypatch.setattr(
+        "app.orders.routes.send_customer_plan_webhook",
+        lambda **kwargs: {"success": True, "status_code": 200, "message": "ok", "error": None},
+    )
+
+    first = auth_client.post(
+        f"/orders/{oid}/checklist",
+        data=_customer_plan_generate_payload(),
+        follow_redirects=False,
+    )
+    assert first.status_code == 302
+    assert "show_mobile_dialog=1" in (first.headers.get("Location", ""))
+
+    second = auth_client.post(
+        f"/orders/{oid}/checklist",
+        data={
+            "current_page": "2",
+            "set_customer_mobile_generate_customer_plan": "1",
+            "customer_mobile": "+919999888777",
+        },
+        follow_redirects=True,
+    )
+    assert second.status_code == 200
+
+    with app.app_context():
+        order = Order.query.get(oid)
+        assert order.mobile == "+919999888777"
+        state = load_checklist_state(order)
+        flow = state.get("flow", {}) if isinstance(state, dict) else {}
+        assert bool(flow.get("customer_plan_generated", False)) is True
+
+
+def test_customer_plan_webhook_failure_does_not_block_pdf_generation(app, auth_client, monkeypatch):
+    app.config["AI_VERIFY_ENABLED"] = False
+    oid = _seed_customer_plan_ready_order(app, mobile="+919876543210")
+    monkeypatch.setattr("app.orders.routes._rebuild_garment_quantity_comparison", lambda order, parsed: None)
+
+    monkeypatch.setattr(
+        "app.orders.routes.send_customer_plan_webhook",
+        lambda **kwargs: {"success": False, "status_code": 500, "message": "n8n down", "error": "http_error"},
+    )
+
+    resp = auth_client.post(
+        f"/orders/{oid}/checklist",
+        data=_customer_plan_generate_payload(),
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"webhook failed" in resp.data.lower()
+
+    with app.app_context():
+        order = Order.query.get(oid)
+        state = load_checklist_state(order)
+        flow = state.get("flow", {}) if isinstance(state, dict) else {}
+        assert bool(flow.get("customer_plan_generated", False)) is True
+        assert str(flow.get("customer_plan_last_send_status", "")) == "failed"
+        assert str(flow.get("customer_plan_last_send_error", "")) == "n8n down"
+        attachments = Attachment.query.filter_by(order_id=oid).all()
+        assert any(str(a.filename).lower().startswith("customer-plan-") for a in attachments)
+
+
+def test_customer_plan_resend_uses_latest_attachment(app, auth_client, monkeypatch):
+    app.config["AI_VERIFY_ENABLED"] = False
+    oid = _seed_customer_plan_ready_order(app, mobile="+919876543210")
+    monkeypatch.setattr("app.orders.routes._rebuild_garment_quantity_comparison", lambda order, parsed: None)
+
+    monkeypatch.setattr(
+        "app.orders.routes.send_customer_plan_webhook",
+        lambda **kwargs: {"success": True, "status_code": 200, "message": "ok", "error": None},
+    )
+    auth_client.post(
+        f"/orders/{oid}/checklist",
+        data=_customer_plan_generate_payload(),
+        follow_redirects=True,
+    )
+
+    called = {"count": 0}
+
+    def _resend_webhook(**kwargs):
+        called["count"] += 1
+        assert str(kwargs["attachment_filename"]).lower().startswith("customer-plan-")
+        return {"success": True, "status_code": 200, "message": "ok", "error": None}
+
+    monkeypatch.setattr("app.orders.routes.send_customer_plan_webhook", _resend_webhook)
+
+    resend = auth_client.post(
+        f"/orders/{oid}/checklist",
+        data={
+            "current_page": "2",
+            "resend_customer_plan_webhook": "1",
+        },
+        follow_redirects=True,
+    )
+    assert resend.status_code == 200
+    assert called["count"] == 1

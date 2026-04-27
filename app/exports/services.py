@@ -1,4 +1,5 @@
-﻿from datetime import datetime
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import base64
 import re
@@ -8,6 +9,8 @@ from flask import current_app, render_template
 
 from app.extensions import db
 from app.models import Attachment
+from app.order_numbers import peek_invoice_number
+from app.orders.checklist_cutting import load_checklist_state
 from app.orders.overview import build_order_overview, build_packing_groups
 from app.storage import ORDER_SHEET_SECTION, delete, exists, read_bytes, save_order_file
 
@@ -99,6 +102,226 @@ def render_order_pdf(order, pdf_variant: str = "order_sheet", display_order_id: 
     if FPDF is None:
         raise RuntimeError("PDF renderer unavailable. Install WeasyPrint runtime libs or fpdf2.")
     return _render_fallback_pdf(order)
+
+
+def render_invoice_pdf(order, payment_details: dict | None = None) -> bytes:
+    details = payment_details or {}
+    order_date = _resolve_invoice_order_date(order)
+    shipment_start = order_date + timedelta(days=14)
+    shipment_end = order_date + timedelta(days=21)
+    shipping = _resolve_invoice_shipping(order)
+
+    total_amount = _format_currency(details.get("total_amount", "0.00"), default="0.00")
+    payment_received = _format_currency(
+        details.get("payment_received", details.get("amount_paid", "0.00")),
+        default="0.00",
+    )
+    balance_amount = _format_currency(details.get("balance", "0.00"), default="0.00")
+    invoice_number = str(details.get("invoice_number", "") or "").strip() or build_invoice_number(order, order_date)
+    payment_mode = str(details.get("payment_mode", "") or "").strip().upper()
+    paid_on_date = _try_parse_date_token(str(details.get("paid_on", "") or "").strip())
+    paid_on_display = _format_invoice_paid_on(details.get("paid_on", ""))
+    paid_on_parts = _invoice_date_parts(paid_on_date) if paid_on_date is not None else None
+    payment_status = str(details.get("payment_status", "") or "").strip().upper()
+    if not payment_status:
+        payment_status = "FULLY PAID" if Decimal(payment_received) >= Decimal(total_amount) else "PARTIALLY PAID"
+
+    html = render_template(
+        "exports/invoice_pdf.html",
+        enquiry_id=str(order.order_id or "").strip(),
+        invoice_order_id=str(order.production_order_id or order.order_id or "").strip(),
+        order_date=_invoice_date_parts(order_date),
+        shipment_start=_invoice_date_parts(shipment_start),
+        shipment_end=_invoice_date_parts(shipment_end),
+        invoice_number=invoice_number,
+        amount=total_amount,
+        payment_received=payment_received,
+        balance=balance_amount,
+        payment_status=payment_status,
+        payment_mode=payment_mode,
+        paid_on=paid_on_display,
+        paid_on_parts=paid_on_parts,
+        transaction_id=str(details.get("transaction_id", "") or "").strip(),
+        shipping_name=shipping["name"],
+        shipping_mobile=shipping["mobile"],
+        shipping_address=shipping["shipping_address"],
+        shipping_city=shipping["city"],
+        shipping_zip_code=shipping["zip_code"],
+        shipping_state=shipping["state"],
+        shipping_country=shipping["country"],
+        shipping_copy=INVOICE_SHIPPING_COPY,
+        what_next_steps=INVOICE_WHAT_NEXT_STEPS,
+        invoice_footer=INVOICE_FOOTER,
+        ira_logo_uri=_ira_logo_uri(),
+    )
+
+    if HTML is not None:
+        try:
+            return HTML(string=html, base_url=str(Path.cwd())).write_pdf()
+        except Exception as exc:  # pragma: no cover
+            current_app.logger.exception("Invoice WeasyPrint render failed, using fallback PDF: %s", exc)
+
+    if sync_playwright is not None:
+        try:
+            return _render_playwright_pdf(html)
+        except Exception as exc:  # pragma: no cover
+            current_app.logger.exception("Invoice Playwright render failed, using fallback PDF: %s", exc)
+
+    if FPDF is None:
+        raise RuntimeError("PDF renderer unavailable. Install WeasyPrint runtime libs or fpdf2.")
+    return _render_invoice_fallback_pdf(
+        enquiry_id=str(order.order_id or "").strip(),
+        invoice_order_id=str(order.production_order_id or order.order_id or "").strip(),
+        order_date=_invoice_date_parts(order_date),
+        shipment_start=_invoice_date_parts(shipment_start),
+        shipment_end=_invoice_date_parts(shipment_end),
+        invoice_number=invoice_number,
+        amount=total_amount,
+        payment_received=payment_received,
+        balance=balance_amount,
+        payment_status=payment_status,
+        payment_mode=payment_mode,
+        paid_on=paid_on_display,
+        transaction_id=str(details.get("transaction_id", "") or "").strip(),
+        shipping_name=shipping["name"],
+        shipping_mobile=shipping["mobile"],
+        shipping_address=shipping["shipping_address"],
+        shipping_city=shipping["city"],
+        shipping_zip_code=shipping["zip_code"],
+        shipping_state=shipping["state"],
+        shipping_country=shipping["country"],
+    )
+
+
+def build_invoice_number(order, order_date: date | None = None) -> str:
+    resolved = order_date or _resolve_invoice_order_date(order)
+    return peek_invoice_number(order_date=resolved)
+
+
+def _resolve_invoice_order_date(order) -> date:
+    enquiry = getattr(order, "enquiry_date", None)
+    if isinstance(enquiry, date):
+        return enquiry
+    created = getattr(order, "created_at", None)
+    if isinstance(created, datetime):
+        return created.date()
+    return datetime.utcnow().date()
+
+
+def _invoice_date_parts(value: date) -> dict[str, str]:
+    day = int(value.day)
+    suffix = _ordinal_suffix(day)
+    month_year = value.strftime("%B %Y").upper()
+    return {
+        "day": str(day),
+        "suffix": suffix.upper(),
+        "month_year": month_year,
+        "text": f"{day}{suffix.upper()} {month_year}",
+    }
+
+
+def _ordinal_suffix(day: int) -> str:
+    if 10 <= (day % 100) <= 20:
+        return "TH"
+    return {1: "ST", 2: "ND", 3: "RD"}.get(day % 10, "TH")
+
+
+def _format_currency(raw: object, default: str = "0.00") -> str:
+    token = str(raw or "").strip().replace("$", "").replace(",", "")
+    if not token:
+        return default
+    try:
+        value = Decimal(token)
+    except (InvalidOperation, TypeError):
+        return default
+    return f"{value:.2f}"
+
+
+def _format_invoice_paid_on(raw: object) -> str:
+    token = str(raw or "").strip()
+    if not token:
+        return ""
+    parsed = _try_parse_date_token(token)
+    if parsed is not None:
+        return _invoice_date_parts(parsed)["text"]
+    cleaned = re.sub(r"\s+", " ", token).strip()
+    return cleaned.upper()
+
+
+def _try_parse_date_token(raw: str) -> date | None:
+    cleaned = re.sub(r"(\d)(st|nd|rd|th)\b", r"\1", str(raw or "").strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    patterns = [
+        "%d %B %Y, %I:%M %p",
+        "%d %b %Y, %I:%M %p",
+        "%d %B %Y %I:%M %p",
+        "%d %b %Y %I:%M %p",
+        "%d %B %Y",
+        "%d %b %Y",
+        "%B %d %Y",
+        "%b %d %Y",
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%d-%m-%Y",
+        "%m-%d-%Y",
+        "%Y-%m-%d",
+    ]
+    for fmt in patterns:
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _resolve_invoice_shipping(order) -> dict[str, str]:
+    state = load_checklist_state(order)
+    flow = state.get("flow", {}) if isinstance(state, dict) else {}
+    if not isinstance(flow, dict):
+        flow = {}
+
+    order_name = _clean_text(getattr(order, "customer_name", ""))
+    order_mobile = _clean_text(getattr(order, "mobile", ""))
+    order_address = _clean_text(getattr(order, "shipping_address", ""))
+    order_city = _clean_text(getattr(order, "city", ""))
+    order_state = _clean_text(getattr(order, "state", ""))
+    order_zip = _clean_text(getattr(order, "zip_code", ""))
+    order_country = _clean_text(getattr(order, "country", "")) or "USA"
+
+    flow_name = _clean_text(flow.get("shipping_name", "") or flow.get("customer_name", ""))
+    flow_mobile = _clean_text(flow.get("shipping_mobile", "") or flow.get("mobile", ""))
+    flow_address = _clean_text(flow.get("shipping_address", ""))
+    flow_city = _clean_text(flow.get("city", ""))
+    flow_state = _clean_text(flow.get("state", ""))
+    flow_zip = _clean_text(flow.get("zip_code", ""))
+    flow_country = _clean_text(flow.get("country", ""))
+
+    shipping_address = order_address or flow_address
+    shipping_city = order_city or flow_city
+    shipping_state = order_state or flow_state
+    shipping_zip = order_zip or flow_zip
+    shipping_country = order_country or flow_country or "USA"
+
+    return {
+        "name": _display_text(order_name or flow_name),
+        "mobile": _display_text(order_mobile or flow_mobile),
+        "shipping_address": _display_text(shipping_address),
+        "city": _display_text(shipping_city),
+        "state": _display_text(shipping_state),
+        "zip_code": _display_text(shipping_zip),
+        "country": _display_text(shipping_country),
+    }
+
+
+def _clean_text(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _display_text(value: object) -> str:
+    token = _clean_text(value)
+    return token if token else "-"
 
 
 def collect_plan_render_stats(order) -> dict[str, int]:
@@ -209,6 +432,67 @@ def _render_fallback_pdf(order):
     return bytes(pdf.output())
 
 
+def _render_invoice_fallback_pdf(**payload) -> bytes:
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=10)
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "ORDER CONFIRMATION", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", size=11)
+    pdf.cell(0, 8, f"ENQUIRY ID: {payload.get('enquiry_id', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"ORDER ID: {payload.get('invoice_order_id', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"ORDER DATE: {payload.get('order_date', {}).get('text', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0,
+        8,
+        "ESTIMATED SHIPMENT DATE: "
+        f"{payload.get('shipment_start', {}).get('text', '')} - {payload.get('shipment_end', {}).get('text', '')}",
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+    pdf.cell(0, 8, f"INVOICE #: # {payload.get('invoice_number', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"AMOUNT ($): ${payload.get('amount', '0.00')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"PAYMENT RECEIVED ($): ${payload.get('payment_received', '0.00')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"BALANCE ($): ${payload.get('balance', '0.00')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"PAYMENT STATUS: {payload.get('payment_status', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"PAYMENT MODE: {payload.get('payment_mode', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"PAID ON: {payload.get('paid_on', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, f"TRANSACTION ID: {payload.get('transaction_id', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "SHIPPING ADDRESS", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", size=11)
+    pdf.cell(
+        0,
+        8,
+        f"NAME: {payload.get('shipping_name', '')}    MOBILE: {payload.get('shipping_mobile', '')}",
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+    pdf.cell(0, 8, f"SHIPPING ADDRESS: {payload.get('shipping_address', '')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0,
+        8,
+        "CITY: {city}    ZIP CODE: {zip_code}".format(
+            city=payload.get("shipping_city", ""),
+            zip_code=payload.get("shipping_zip_code", ""),
+        ),
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+    pdf.cell(
+        0,
+        8,
+        "STATE: {state}    COUNTRY: {country}".format(
+            state=payload.get("shipping_state", ""),
+            country=payload.get("shipping_country", ""),
+        ),
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
+    return bytes(pdf.output())
+
+
 def _render_playwright_pdf(html: str) -> bytes:
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
@@ -229,6 +513,21 @@ APPROVAL_PARAGRAPHS = [
     "Production begins the next business day after the invoice has been paid and all details and artwork mockups have been confirmed by email.",
     "Additional players added to order once production begins is considered an ADD ON ORDER. We suggest accounting for Sub Players and Add On players when placing the original order. Add On Orders will always follow the same lead times as regular order as noted above.",
 ]
+
+INVOICE_SHIPPING_COPY = [
+    "We will ship your order within 2-3 weeks from the date of confirmation.",
+    "Please note that the estimated shipment date may vary depending on the complexity and overall volume of your order.",
+]
+
+INVOICE_WHAT_NEXT_STEPS = [
+    "Our team will carefully review your order details.",
+    "If any clarification is required, we will contact you promptly.",
+    "Our design team will prepare the final artwork.",
+    "The final artwork and a printed fabric sample will be shared for your approval prior to bulk production.",
+    "The design and sampling process typically requires 2-3 business days.",
+]
+
+INVOICE_FOOTER = "Bulk production will commence upon receipt of your formal approval."
 
 
 def _split_design_specs(specs, image_attachments):
@@ -474,11 +773,23 @@ def _ira_logo_uri():
     static_dir = current_app.static_folder
     if not static_dir:
         return None
+    # Keep the primary brand asset first so exports match the approved sample.
     for name in ("ira-brand-logo.png", "ira-logo-new.png", "ira-logo.png"):
         logo_path = Path(static_dir) / "img" / name
         if logo_path.exists():
             return _file_uri(str(logo_path.resolve()))
     return None
+
+
+def _ira_invoice_logo_uri():
+    # Invoice must use the same red logo style as the sample/order-sheet.
+    static_dir = current_app.static_folder
+    if not static_dir:
+        return None
+    primary = Path(static_dir) / "img" / "ira-brand-logo.png"
+    if primary.exists():
+        return _file_uri(str(primary.resolve()))
+    return _ira_logo_uri()
 
 
 def _build_export_spec_view(spec, image_attachments):
@@ -677,3 +988,4 @@ def save_plan_pdf(order, pdf_bytes: bytes, plan_slug: str, display_order_id: str
         mime_type="application/pdf",
         storage_path=storage_path,
     )
+

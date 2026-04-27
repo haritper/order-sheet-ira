@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Invoice Workspace{% endblock %}
+{% block content %}
+<div class="section-head">
+  <div>
+    <h1>Invoice Workspace</h1>
+    <p class="muted">Pick an order, review receipt extraction, and generate or download invoice PDF.</p>
+  </div>
+</div>
+
+<section class="card">
+  <h2 style="margin-bottom:10px;">Orders</h2>
+  <p class="muted" style="margin-bottom:10px;">Only orders with uploaded invoice receipt are shown here.</p>
+  {% if not order_rows %}
+    <div class="flash warning">No invoice-receipt uploaded orders available yet.</div>
+  {% else %}
+  <div class="table-wrap">
+    <table class="cp-details-table" style="min-width:960px;">
+      <thead>
+        <tr>
+          <th>Enquiry ID</th>
+          <th>Order ID</th>
+          <th>Order Date</th>
+          <th>Customer</th>
+          <th>Invoices</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in order_rows %}
+        {% set row_order = row.order %}
+        {% set row_receipt = row.receipt_attachment %}
+        {% set row_invoice = row.latest_invoice_attachment %}
+        <tr>
+          <td>{{ row_order.order_id or "-" }}</td>
+          <td>{{ row_order.production_order_id or row_order.order_id or "-" }}</td>
+          <td>{{ row_order.enquiry_date or row_order.created_at.date() if row_order.created_at else "-" }}</td>
+          <td>{{ row_order.customer_name or "-" }}</td>
+          <td>
+            {% if row_invoice %}
+              <div>{{ row_invoice.filename }}</div>
+              <small class="muted">Versions: {{ row.invoice_version_count }}</small>
+            {% else %}
+              <span>-</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="row" style="gap:8px; flex-wrap:wrap;">
+              {% if row_invoice %}
+                <a class="btn btn-outline btn-small" href="{{ url_for('exports.get_export', order_id=row_order.id, attachment_id=row_invoice.id) }}">Download Latest</a>
+              {% endif %}
+              <form method="post" action="{{ url_for('invoice.download_invoice_pdf', order_id=row_order.id) }}" style="display:inline;">
+                <button class="btn btn-small" type="submit">Generate &amp; Download</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+{% if order %}
+<section class="card">
+  <h2 style="margin-bottom:10px;">Order Summary</h2>
+  <div class="table-wrap">
+    <table class="cp-details-table">
+      <tbody>
+        <tr>
+          <th>Enquiry ID</th>
+          <td>{{ order.order_id or "-" }}</td>
+          <th>Order ID</th>
+          <td>{{ order.production_order_id or order.order_id or "-" }}</td>
+        </tr>
+        <tr>
+          <th>Order Date</th>
+          <td>{{ order.enquiry_date or order.created_at.date() if order.created_at else "-" }}</td>
+          <th>Invoice #</th>
+          <td>{{ payment_values.get("invoice_number", "") }}</td>
+        </tr>
+        <tr>
+          <th>Customer</th>
+          <td>{{ order.customer_name or "-" }}</td>
+          <th>Mobile</th>
+          <td>{{ order.mobile or "-" }}</td>
+        </tr>
+        <tr>
+          <th>Shipping</th>
+          <td colspan="3">
+            {{ order.shipping_address or "-" }}, {{ order.city or "-" }}, {{ order.state or "-" }} {{ order.zip_code or "-" }}, {{ order.country or "-" }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2 style="margin-bottom:10px;">Payment Details (Optional Manual Override)</h2>
+  {% if not payment_values.get("total_amount") %}
+    <div class="flash warning" style="margin-bottom:10px;">
+      Pricing total is unavailable for this order. Sync this order in Pricing Intelligence before generating invoice.
+    </div>
+  {% endif %}
+  {% if latest_invoice_attachment %}
+    <p class="muted" style="margin-bottom:10px;">
+      Latest invoice: <strong>{{ latest_invoice_attachment.filename }}</strong>
+      <a class="btn btn-outline btn-small" style="margin-left:8px;" href="{{ url_for('exports.get_export', order_id=order.id, attachment_id=latest_invoice_attachment.id) }}">Download Latest</a>
+      <small class="muted" style="margin-left:8px;">Versions: {{ invoice_version_count }}</small>
+    </p>
+  {% endif %}
+  {% if receipt_attachment %}
+    <p class="muted" style="margin-bottom:10px;">
+      Receipt file: <strong>{{ receipt_attachment.filename }}</strong>
+      <a class="btn btn-outline btn-small" style="margin-left:8px;" href="{{ url_for('exports.get_export', order_id=order.id, attachment_id=receipt_attachment.id) }}">Download Receipt</a>
+    </p>
+  {% else %}
+    <div class="flash danger">Upload invoice receipt in checklist before generating invoice.</div>
+  {% endif %}
+
+  {% if extracted_values %}
+    <div class="flash info">
+      Auto-extracted values loaded from receipt. You can edit before generating invoice.
+    </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('invoice.download_invoice_pdf', order_id=order.id) }}" class="grid2">
+    <label>
+      Total Amount (USD) - from Pricing Intelligence
+      <input type="text" value="{{ payment_values.get('total_amount', '') }}" readonly>
+    </label>
+    <label>
+      Transaction ID
+      <input type="text" name="transaction_id" value="{{ payment_values.get('transaction_id', '') }}">
+    </label>
+    <label>
+      Amount Paid (USD)
+      <input type="text" name="amount_paid" value="{{ payment_values.get('amount_paid', '') }}">
+    </label>
+    <label>
+      Payment Mode
+      <input type="text" name="payment_mode" value="{{ payment_values.get('payment_mode', '') }}">
+    </label>
+    <label>
+      Paid On
+      <input type="text" name="paid_on" value="{{ payment_values.get('paid_on', '') }}">
+    </label>
+    <label class="full">
+      Invoice Number
+      <input type="text" name="invoice_number" value="{{ payment_values.get('invoice_number', '') }}">
+    </label>
+    <div class="full row" style="justify-content:flex-end; margin-top:6px;">
+      <button class="btn" type="submit" {% if not receipt_attachment or not payment_values.get('total_amount') %}disabled{% endif %}>Generate &amp; Download Invoice PDF</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

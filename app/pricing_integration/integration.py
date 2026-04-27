@@ -24,7 +24,7 @@ def ingest_production_plan_for_order(*, order_id: int, order_number: str, pdf_by
 
 def resolve_ingestion_user_id() -> int:
     employee = db.execute(
-        "SELECT id FROM users WHERE username = 'giri' LIMIT 1"
+        "SELECT id FROM users WHERE username = 'manager' LIMIT 1"
     ).fetchone()
     if employee:
         return int(employee["id"])

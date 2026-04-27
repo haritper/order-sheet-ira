@@ -30,7 +30,14 @@ def test_consume_pod_numbers_skips_existing_custom_numbers(app):
                 status="PENDING",
             )
         )
-        db.session.add(OrderNumberCounter(pod_next_number=1, ira_next_number=1, sequence_width=3))
+        db.session.add(
+            OrderNumberCounter(
+                pod_next_number=1,
+                ira_next_number=1,
+                invoice_next_number=1,
+                sequence_width=3,
+            )
+        )
         db.session.commit()
 
         picked, _width = consume_pod_numbers(count=2)
@@ -54,7 +61,14 @@ def test_get_or_assign_ira_order_id_skips_used_sequence_even_if_team_differs(app
 
         target = Order(order_id="POD-TARGET", customer_name="Target")
         db.session.add(target)
-        db.session.add(OrderNumberCounter(pod_next_number=1, ira_next_number=1, sequence_width=3))
+        db.session.add(
+            OrderNumberCounter(
+                pod_next_number=1,
+                ira_next_number=1,
+                invoice_next_number=1,
+                sequence_width=3,
+            )
+        )
         db.session.commit()
 
         ira_id = get_or_assign_ira_order_id(target)

@@ -1,0 +1,498 @@
+{% extends 'base.html' %}
+{% block title %}Assign Orders{% endblock %}
+{% block content %}
+<div class="assign-tool-ui">
+<section class="assign-cards" id="summaryCards">
+  <article class="card">
+    <h2>Total Orders</h2>
+    <p>{{ summary.total_orders }}</p>
+  </article>
+  <article class="card">
+    <h2>Pending File</h2>
+    <p>{{ summary.pending_file }}</p>
+  </article>
+  <article class="card">
+    <h2>Ready For Shipment</h2>
+    <p>{{ summary.ready_for_shipment }}</p>
+  </article>
+  <article class="card">
+    <h2>Overdue</h2>
+    <p>{{ summary.overdue }}</p>
+  </article>
+</section>
+
+<section class="panel">
+  <h2>Add / Edit Order</h2>
+  <form class="assign-add-edit-form" id="assignAddEditForm" method="post" action="{{ url_for('assign.assign_add_edit') }}" enctype="multipart/form-data">
+    <label>Date Received
+      <input type="date" id="addEditDateReceived" name="date_received">
+    </label>
+    <label>Date of Shipping
+      <input type="date" id="addEditDateShipping" name="date_shipping">
+    </label>
+    <label>Order Name
+      <select id="addEditOrderName" name="order_name" required>
+        <option value="">Select Production Order ID</option>
+        {% for opt in production_order_options %}
+        <option value="{{ opt.production_order_id }}" data-customer="{{ opt.customer_name }}">{{ opt.production_order_id }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Qty
+      <input type="number" id="addEditQty" name="qty" min="1" value="1">
+    </label>
+    <label>Status
+      <select id="addEditStatus" name="status" style="width:100%;">
+        {% for status in statuses %}
+        <option value="{{ status }}">{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Assigned To
+      <select id="addEditAssignedTo" name="assigned_designer_name">
+        <option value="">Select</option>
+        {% for des in active_designers %}
+        <option value="{{ des.designer_name }}">{{ des.designer_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Order Category
+      <select id="addEditCategory" name="order_category">
+        <option value="">Select</option>
+        {% for c in categories %}
+        <option value="{{ c }}">{{ c }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>File Required
+      <select id="addEditFileRequired" name="file_required">
+        {% for f in file_required_options %}
+        <option value="{{ f }}">{{ f }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Client Name
+      <input type="text" id="addEditClientName" name="client_name" placeholder="Auto-filled from customer" readonly>
+    </label>
+    <label>Order Images
+      <input type="file" id="addEditImages" name="order_image" accept="image/*">
+    </label>
+    <div class="assign-add-edit-actions">
+      <button type="submit" class="btn assign-add-save-btn">Save Order</button>
+      <button type="reset" class="btn btn-outline assign-add-reset-btn">Reset</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Filters</h2>
+  <form method="get" class="assign-filters-grid">
+  <label>Status
+    <div class="checkbox-dropdown" id="statusDropdown" style="width:100%;max-width:260px;">
+      <div class="checkbox-dropdown-trigger" id="statusDropdownTrigger">
+        <span id="statusDropdownLabel">All</span>
+        <span class="checkbox-dropdown-arrow">&#9660;</span>
+      </div>
+      <div class="checkbox-dropdown-menu" id="statusDropdownMenu" style="display:none;">
+        <label class="checkbox-dropdown-item">
+          <input type="checkbox" id="statusAllChk" class="status-all-chk"> <span>All</span>
+        </label>
+        {% for s in statuses %}
+        <label class="checkbox-dropdown-item">
+          <input type="checkbox" name="status" value="{{ s }}" class="status-chk" {% if s in selected_statuses %}checked{% endif %}> <span>{{ s }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+  </label>
+  <label>Assigned To
+    <select name="assignee" style="width:100%;max-width:260px;">
+      <option value="">All</option>
+      {% for row in active_designers %}
+      <option value="{{ row.designer_name }}" {% if filters.assignee == row.designer_name %}selected{% endif %}>{{ row.designer_name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Category
+    <select name="category">
+      <option value="">All</option>
+      {% for c in categories %}
+      <option value="{{ c }}" {% if filters.category == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Search
+    <input type="text" name="q" value="{{ filters.q }}" placeholder="Order name / client">
+  </label>
+  <input type="hidden" name="date_from" value="{{ filters.date_from }}">
+  <input type="hidden" name="date_to" value="{{ filters.date_to }}">
+  <button type="submit" id="hiddenFilterSubmit" style="display:none;">Apply</button>
+  </form>
+  <div class="assign-tools">
+    <a class="btn btn-danger" href="{{ url_for('assign.assign_dashboard') }}">Clear All</a>
+  </div>
+</section>
+
+<form method="post" action="{{ url_for('assign.assign_save') }}" id="assignSaveForm">
+  <input type="hidden" name="return_query" value="{{ return_query }}">
+  <section class="panel">
+    <div class="section-head assign-toolbar-head">
+      <h2>Orders</h2>
+      <div class="assign-toolbar-actions">
+        <button type="button" class="btn btn-outline" id="openEmailSettingsBtn">Email Settings</button>
+        <button type="button" class="btn" id="saveSelectedTopBtn">Save Orders</button>
+      </div>
+    </div>
+  <div class="table-wrap">
+    <table class="assign-grid">
+      <thead>
+        <tr>
+          <th>Date Received</th>
+          <th>Date Shipping</th>
+          <th>Order Name</th>
+          <th>Qty</th>
+          <th>Status</th>
+          <th>Assigned To</th>
+          <th>Category</th>
+          <th>File Required</th>
+          <th>Client Name</th>
+          <th>Pending Days</th>
+          <th>Delay</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <input type="hidden" name="selected_row" value="{{ row.state_id }}" class="row-select">
+          <input type="hidden" name="date_received_{{ row.state_id }}" value="{{ row.date_received.isoformat() if row.date_received else '' }}">
+          <input type="hidden" name="date_shipping_{{ row.state_id }}" value="{{ row.date_shipping.isoformat() if row.date_shipping else '' }}">
+          <input type="hidden" name="qty_{{ row.state_id }}" value="{{ row.qty }}">
+          <input type="hidden" name="status_{{ row.state_id }}" value="{{ row.status }}">
+          <input type="hidden" name="assigned_designer_name_{{ row.state_id }}" value="{{ row.assigned_designer_name }}">
+          <input type="hidden" name="order_category_{{ row.state_id }}" value="{{ row.order_category }}">
+          <input type="hidden" name="file_required_{{ row.state_id }}" value="{{ row.file_required }}">
+          <input type="hidden" name="client_name_{{ row.state_id }}" value="{{ row.client_name }}">
+          <td>{{ row.date_received_display }}</td>
+          <td>{{ row.date_shipping_display }}</td>
+          <td>
+            <button
+              type="button"
+              class="order-link-btn"
+              data-order-name="{{ row.order_name }}"
+              data-image-url="{% if row.has_image %}{{ url_for('assign.assign_order_single_image', order_id=row.order_id) }}{% endif %}">
+              {{ row.order_name }}
+            </button>
+          </td>
+          <td>{{ row.qty }}</td>
+          <td>
+            <span class="status-text">{{ row.status }}</span>
+          </td>
+          <td>{{ row.assigned_designer_name }}</td>
+          <td>{{ row.order_category }}</td>
+          <td>{{ row.file_required }}</td>
+          <td>{{ row.client_name }}</td>
+          <td style="text-align:center;">{{ row.pending_days }}</td>
+          <td>{{ row.delay_display }}</td>
+          <td class="actions-cell">
+            <div class="actions-inline">
+              <button
+                type="button" class="btn btn-outline btn-small open-image-btn"
+                data-order-name="{{ row.order_name }}"
+                data-image-url="{% if row.has_image %}{{ url_for('assign.assign_order_single_image', order_id=row.order_id) }}{% endif %}">
+                Edit
+              </button>
+              <button type="button" class="btn btn-danger btn-small">Delete</button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="12">No production orders found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="assign-bottom-actions">
+    <button type="submit" class="btn">Save Selected</button>
+  </div>
+  </section>
+</form>
+
+<div class="assign-modal-overlay" id="imageModal" aria-hidden="true">
+  <div class="assign-modal-card">
+    <div class="assign-modal-head">
+      <h3 id="imageModalTitle">Order Images</h3>
+      <button type="button" id="closeImageModalBtn" class="btn btn-outline btn-small">Close</button>
+    </div>
+    <div class="assign-image-grid" id="imageModalGrid"></div>
+  </div>
+</div>
+
+<div class="assign-modal-overlay" id="emailSettingsModal" aria-hidden="true">
+  <div class="assign-modal-card">
+    <div class="assign-modal-head">
+      <div>
+        <h3>Designer Email Settings</h3>
+        <p class="muted assign-modal-subtitle">Configure active designer names and delivery email addresses.</p>
+      </div>
+      <button type="button" id="closeEmailSettingsBtn" class="btn btn-outline btn-small">Close</button>
+    </div>
+    <form method="post" action="{{ url_for('assign.assign_email_settings') }}" id="designerSettingsForm">
+      <input type="hidden" name="return_query" value="{{ return_query }}">
+      <div class="designer-settings-body">
+        <div class="designer-grid-head">
+          <span>Name</span>
+          <span>Email</span>
+          <span>Active</span>
+          <span>Action</span>
+        </div>
+        <div id="designerRowsWrap" class="designer-grid-body">
+          {% if all_designers %}
+            {% for row in all_designers %}
+            <div class="designer-row">
+              <input type="text" name="designer_name[]" value="{{ row.designer_name }}" placeholder="Designer name" required>
+              <input type="email" name="designer_email[]" value="{{ row.designer_email }}" placeholder="name@company.com" required>
+              <label class="inline-check designer-active-check">
+                <input type="checkbox" name="designer_active" value="{{ loop.index0 }}" {% if row.is_active %}checked{% endif %}>
+                <span>Active</span>
+              </label>
+              <button type="button" class="btn btn-outline btn-small designer-remove-btn">Remove</button>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="designer-row">
+              <input type="text" name="designer_name[]" value="" placeholder="Designer name" required>
+              <input type="email" name="designer_email[]" value="" placeholder="name@company.com" required>
+              <label class="inline-check designer-active-check">
+                <input type="checkbox" name="designer_active" value="0" checked>
+                <span>Active</span>
+              </label>
+              <button type="button" class="btn btn-outline btn-small designer-remove-btn">Remove</button>
+            </div>
+          {% endif %}
+        </div>
+        <div class="assign-bottom-actions designer-modal-actions">
+          <button type="button" class="btn btn-outline" id="addDesignerRowBtn">+ Add Designer</button>
+          <button type="submit" class="btn">Save Settings</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .checkbox-dropdown { position: relative; display: inline-block; width: 100%; }
+  .checkbox-dropdown-trigger {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px;
+    background: #fff; cursor: pointer; user-select: none;
+    font-size: 14px; min-height: 38px;
+  }
+  .checkbox-dropdown-trigger:hover { border-color: #888; }
+  .checkbox-dropdown-arrow { font-size: 11px; color: #666; margin-left: 8px; }
+  .checkbox-dropdown-menu {
+    position: absolute; top: 100%; left: 0; z-index: 999;
+    background: #fff; border: 1px solid #ccc; border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    min-width: 100%; max-height: 220px; overflow-y: auto; padding: 6px 0;
+  }
+  .checkbox-dropdown-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 14px; cursor: pointer; font-size: 14px; white-space: nowrap;
+    flex-direction: row;
+  }
+  .checkbox-dropdown-item:hover { background: #f5f5f5; }
+  .checkbox-dropdown-item input[type="checkbox"] {
+    margin: 0; cursor: pointer; flex-shrink: 0;
+    width: 15px; height: 15px; accent-color: #c0392b;
+  }
+  .checkbox-dropdown-item span,
+  .checkbox-dropdown-item { line-height: 1.4; }
+</style>
+
+<script>
+  (function () {
+    // ── Checkbox Dropdown for Status ──
+    const statusTrigger = document.getElementById("statusDropdownTrigger");
+    const statusMenu = document.getElementById("statusDropdownMenu");
+    const statusLabel = document.getElementById("statusDropdownLabel");
+    const statusAllChk = document.getElementById("statusAllChk");
+    const statusChks = Array.from(document.querySelectorAll(".status-chk"));
+    const filterForm = document.querySelector(".assign-filters-grid");
+
+    function updateStatusLabel() {
+      const checked = statusChks.filter(c => c.checked);
+      if (checked.length === 0) {
+        statusLabel.textContent = "All";
+        statusAllChk.checked = true;
+      } else if (checked.length === statusChks.length) {
+        statusLabel.textContent = "All";
+        statusAllChk.checked = true;
+      } else if (checked.length === 1) {
+        statusLabel.textContent = checked[0].value;
+        statusAllChk.checked = false;
+      } else {
+        statusLabel.textContent = checked.length + " selected";
+        statusAllChk.checked = false;
+      }
+    }
+
+    if (statusTrigger && statusMenu) {
+      statusTrigger.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const isOpen = statusMenu.style.display !== "none";
+        statusMenu.style.display = isOpen ? "none" : "block";
+      });
+      document.addEventListener("click", function () {
+        statusMenu.style.display = "none";
+      });
+      statusMenu.addEventListener("click", function (e) { e.stopPropagation(); });
+
+      statusAllChk.addEventListener("change", function () {
+        if (statusAllChk.checked) {
+          statusChks.forEach(c => c.checked = false);
+          updateStatusLabel();
+          if (filterForm) filterForm.submit();
+        }
+      });
+
+      statusChks.forEach(function (chk) {
+        chk.addEventListener("change", function () {
+          updateStatusLabel();
+          if (filterForm) filterForm.submit();
+        });
+      });
+
+      updateStatusLabel();
+    }
+
+    const saveForm = document.getElementById("assignSaveForm");
+    const rowChecks = Array.from(document.querySelectorAll(".row-select"));
+    const saveTopBtn = document.getElementById("saveSelectedTopBtn");
+    if (saveTopBtn && saveForm) {
+      saveTopBtn.addEventListener("click", function () { saveForm.submit(); });
+    }
+    const addEditOrderName = document.getElementById("addEditOrderName");
+    const addEditClientName = document.getElementById("addEditClientName");
+    if (addEditOrderName && addEditClientName) {
+      function syncClientNameFromOrder() {
+        const sel = addEditOrderName.options[addEditOrderName.selectedIndex];
+        const customer = (sel && sel.getAttribute("data-customer")) || "";
+        addEditClientName.value = customer;
+      }
+      addEditOrderName.addEventListener("change", syncClientNameFromOrder);
+      syncClientNameFromOrder();
+    }
+    rowChecks.forEach(function (el) { el.checked = true; });
+
+    if (filterForm) {
+      let searchDebounce = null;
+      filterForm.querySelectorAll("input, select").forEach(function (el) {
+        if (el.type !== "hidden" && !el.classList.contains("status-chk") && !el.classList.contains("status-all-chk")) {
+          el.addEventListener("change", function () { filterForm.submit(); });
+          if (el.tagName.toLowerCase() === "input") {
+            el.addEventListener("input", function () {
+              window.clearTimeout(searchDebounce);
+              searchDebounce = window.setTimeout(function () {
+                filterForm.submit();
+              }, 450);
+            });
+          }
+        }
+      });
+    }
+
+    const imageModal = document.getElementById("imageModal");
+    const imageModalTitle = document.getElementById("imageModalTitle");
+    const imageModalGrid = document.getElementById("imageModalGrid");
+    const closeImageModalBtn = document.getElementById("closeImageModalBtn");
+    function closeImageModal() {
+      imageModal.setAttribute("aria-hidden", "true");
+      imageModalGrid.innerHTML = "";
+    }
+    function openImageModal(btn) {
+      const title = btn.getAttribute("data-order-name") || "Order Images";
+      imageModalTitle.textContent = "Order Images - " + title;
+      imageModalGrid.innerHTML = "";
+      const url = btn.getAttribute("data-image-url") || "";
+      if (!url) {
+        const info = document.createElement("p");
+        info.className = "muted";
+        info.textContent = "No images uploaded for this order.";
+        imageModalGrid.appendChild(info);
+      } else {
+        const cell = document.createElement("div");
+        cell.className = "assign-image-cell assign-image-cell-single";
+        cell.innerHTML = "<img src='" + url + "' alt='Order image'>";
+        imageModalGrid.appendChild(cell);
+      }
+      imageModal.setAttribute("aria-hidden", "false");
+    }
+    document.querySelectorAll(".order-link-btn, .open-image-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () { openImageModal(btn); });
+    });
+    if (closeImageModalBtn) closeImageModalBtn.addEventListener("click", closeImageModal);
+    if (imageModal) imageModal.addEventListener("click", function (ev) {
+      if (ev.target === imageModal) closeImageModal();
+    });
+
+    const emailModal = document.getElementById("emailSettingsModal");
+    const openEmailBtn = document.getElementById("openEmailSettingsBtn");
+    const closeEmailBtn = document.getElementById("closeEmailSettingsBtn");
+    const addDesignerRowBtn = document.getElementById("addDesignerRowBtn");
+    const designerRowsWrap = document.getElementById("designerRowsWrap");
+    function reindexDesignerRows() {
+      Array.from(designerRowsWrap.querySelectorAll(".designer-row")).forEach(function (row, idx) {
+        const chk = row.querySelector("input[name='designer_active']");
+        if (chk) chk.value = String(idx);
+      });
+    }
+    function bindDesignerRowRemove(row) {
+      const removeBtn = row.querySelector(".designer-remove-btn");
+      if (!removeBtn) return;
+      removeBtn.addEventListener("click", function () {
+        const rows = designerRowsWrap.querySelectorAll(".designer-row");
+        if (rows.length <= 1) return;
+        row.remove();
+        reindexDesignerRows();
+      });
+    }
+    function openEmailModal() { emailModal.setAttribute("aria-hidden", "false"); }
+    function closeEmailModal() { emailModal.setAttribute("aria-hidden", "true"); }
+    if (openEmailBtn) openEmailBtn.addEventListener("click", openEmailModal);
+    if (closeEmailBtn) closeEmailBtn.addEventListener("click", closeEmailModal);
+    if (emailModal) emailModal.addEventListener("click", function (ev) {
+      if (ev.target === emailModal) closeEmailModal();
+    });
+    if (addDesignerRowBtn && designerRowsWrap) {
+      designerRowsWrap.querySelectorAll(".designer-row").forEach(function (row) {
+        bindDesignerRowRemove(row);
+      });
+      reindexDesignerRows();
+      addDesignerRowBtn.addEventListener("click", function () {
+        const idx = designerRowsWrap.querySelectorAll(".designer-row").length;
+        const row = document.createElement("div");
+        row.className = "designer-row";
+        row.innerHTML =
+          "<input type='text' name='designer_name[]' placeholder='Designer name' required>" +
+          "<input type='email' name='designer_email[]' placeholder='name@company.com' required>" +
+          "<label class='inline-check designer-active-check'><input type='checkbox' name='designer_active' value='" + idx + "' checked><span>Active</span></label>" +
+          "<button type='button' class='btn btn-outline btn-small designer-remove-btn'>Remove</button>";
+        designerRowsWrap.appendChild(row);
+        bindDesignerRowRemove(row);
+        reindexDesignerRows();
+      });
+    }
+
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape") {
+        closeImageModal();
+        closeEmailModal();
+      }
+    });
+  })();
+</script>
+</div>
+{% endblock %}

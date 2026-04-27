@@ -41,8 +41,10 @@
             {% if fx_snapshot.provider_date %}({{ fx_snapshot.provider_date }}){% endif %}
             {% if fx_snapshot.stale %}stale{% endif %}
           </p>
-          {% elif not is_owner %}
-          <p class="muted small">Base pricing edits are managed in {{ source_currency_code }}.</p>
+          {% elif is_manager %}
+          <p class="muted small">Manager access: pricing value updates are enabled.</p>
+          {% else %}
+          <p class="muted small">Pricing value updates are manager-only.</p>
           {% endif %}
           <a class="button ghost" href="{{ url_for('pricing.logout') }}">Logout</a>
         </div>

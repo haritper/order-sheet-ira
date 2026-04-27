@@ -26,6 +26,8 @@ data/**/checklist-preview.sig
 
 # Local runtime / logs
 *.log
+flask.out
+flask.err
 server.out.log
 server.err.log
 .codex_run_*.py
@@ -51,3 +53,4 @@ Thumbs.db
 .idea/
 .vscode/
 checklist-cutting/
+tmp_invoice_compare/

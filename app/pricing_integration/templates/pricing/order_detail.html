@@ -81,9 +81,9 @@
 <section class="panel">
   <div class="panel-header">
     <p class="eyebrow">Extracted Items</p>
-    <h3>{% if is_owner %}Production cost vs quoted pricing{% else %}Operational order view{% endif %}</h3>
+    <h3>{% if is_manager %}Production cost vs quoted pricing{% else %}Operational order view{% endif %}</h3>
   </div>
-  {% if is_owner %}
+  {% if is_manager %}
   <form method="post" class="stack">
     <input type="hidden" name="pricing_csrf_token" value="{{ pricing_csrf_token }}">
   {% endif %}
@@ -94,7 +94,7 @@
             <th>Item</th>
             <th>Matched Product</th>
             <th>Quantity</th>
-            {% if is_owner %}
+            {% if is_manager %}
             <th>Production Unit</th>
             <th>Quoted Unit</th>
             <th>Production Total</th>
@@ -108,7 +108,7 @@
             <td>
               <strong>{{ item.display_name }}</strong>
               <div class="muted small">{{ item.extracted_attributes.descriptor or "-" }} {{ item.extracted_attributes.variant or "" }}</div>
-              {% if is_owner and item.extracted_attributes.size_costing %}
+              {% if is_manager and item.extracted_attributes.size_costing %}
               <div class="muted small">Exact size-mix costing applied</div>
               {% endif %}
               <div class="inline-meter">
@@ -120,7 +120,7 @@
             </td>
             <td>{{ item.product_code or "No match" }}</td>
             <td>{{ item.quantity }}</td>
-            {% if is_owner %}
+            {% if is_manager %}
             <td>{{ item.unit_suggested_rate|usd }}</td>
             <td>
               <input type="number" step="0.01" name="quote_{{ item.id }}" placeholder="USD" value="{{ item.unit_quoted_rate if item.unit_quoted_rate is not none else '' }}">
@@ -139,7 +139,7 @@
             </td>
             {% endif %}
           </tr>
-          {% if is_owner and item.extracted_attributes.size_costing %}
+          {% if is_manager and item.extracted_attributes.size_costing %}
           <tr class="detail-row">
             <td colspan="7">
               <div class="size-mix-card">
@@ -171,7 +171,7 @@
         </tbody>
       </table>
     </div>
-    {% if is_owner %}
+    {% if is_manager %}
     <div class="form-grid">
       <label>
         <span>Shipping Fee (USD)</span>
@@ -204,9 +204,9 @@
     </label>
     <button class="button" type="submit">Save Order Updates</button>
     {% else %}
-    <p class="muted">Financial pricing, quoted rates, shipping, and duties are hidden from employees. Use the pricing rules page to adjust base rates in {{ source_currency_code }} if the datasheet needs correction.</p>
+    <p class="muted">Financial pricing, quoted rates, shipping, and duties are editable only by manager.</p>
     {% endif %}
-  {% if is_owner %}
+  {% if is_manager %}
   </form>
   {% endif %}
 </section>

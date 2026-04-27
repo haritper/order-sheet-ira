@@ -8,9 +8,9 @@
       <h2>Transparent Base Pricing</h2>
       <p class="muted">
         {% if is_owner %}
-        Inspired by the public IRA pricing flow, this page keeps a clear "starts from" base matrix. Employees edit the underlying datasheet rates in {{ source_currency_code }}, while owner view also compares the converted {{ currency_code }} equivalent.
+        Inspired by the public IRA pricing flow, this page keeps a clear "starts from" base matrix. Manager edits the underlying datasheet rates in {{ source_currency_code }}, while owner view also compares the converted {{ currency_code }} equivalent.
         {% else %}
-        Inspired by the public IRA pricing flow, this page keeps a clear "starts from" base matrix. Employees edit only the underlying datasheet rates in {{ source_currency_code }}.
+        Inspired by the public IRA pricing flow, this page keeps a clear "starts from" base matrix. Manager edits only the underlying datasheet rates in {{ source_currency_code }}.
         {% endif %}
       </p>
     </div>
@@ -99,16 +99,20 @@
           <td>{{ rule.variant or "-" }}</td>
           <td>{{ "%.2f"|format(rule.calculated_unit_rate_inr) }} {{ source_currency_code }}</td>
           <td>
-            <form
-              method="post"
-              class="inline-form"
-              action="{{ url_for('pricing.pricing_rules', q=pricing_filters.q or None, category=pricing_filters.category or None, sheet=pricing_filters.sheet or None) }}"
-            >
-              <input type="hidden" name="pricing_csrf_token" value="{{ pricing_csrf_token }}">
-              <input type="hidden" name="rule_id" value="{{ rule.id }}">
-              <input type="number" step="0.01" name="override_unit_rate_inr" placeholder="{{ source_currency_code }}" value="{{ rule.override_unit_rate if rule.override_unit_rate is not none else '' }}">
-              <button class="button small" type="submit">Save</button>
-            </form>
+            {% if is_manager %}
+              <form
+                method="post"
+                class="inline-form"
+                action="{{ url_for('pricing.pricing_rules', q=pricing_filters.q or None, category=pricing_filters.category or None, sheet=pricing_filters.sheet or None) }}"
+              >
+                <input type="hidden" name="pricing_csrf_token" value="{{ pricing_csrf_token }}">
+                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                <input type="number" step="0.01" name="override_unit_rate_inr" placeholder="{{ source_currency_code }}" value="{{ rule.override_unit_rate if rule.override_unit_rate is not none else '' }}">
+                <button class="button small" type="submit">Save</button>
+              </form>
+            {% else %}
+              <span class="muted small">Manager only</span>
+            {% endif %}
           </td>
           <td>{{ "%.2f"|format(rule.effective_unit_rate_inr) }} {{ source_currency_code }}</td>
           {% if is_owner %}

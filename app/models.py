@@ -11,6 +11,7 @@ from app.extensions import bcrypt, db, login_manager
 class Role(str, Enum):
     ADMIN = "admin"
     OPERATOR = "operator"
+    MANAGER = "manager"
 
 
 class OrderStatus(str, Enum):
@@ -80,11 +81,17 @@ class User(UserMixin, TimestampMixin, db.Model):
 
     @property
     def has_admin_panel_access(self) -> bool:
-        if str(self.role or "").strip().lower() == Role.ADMIN.value:
-            return True
-        email = str(self.email or "").strip().lower()
-        local = email.split("@", 1)[0] if "@" in email else email
-        return local == "giri"
+        return str(self.role or "").strip().lower() == Role.ADMIN.value
+
+    @property
+    def has_operator_workflow_access(self) -> bool:
+        role = str(self.role or "").strip().lower()
+        return role in {Role.OPERATOR.value, Role.MANAGER.value}
+
+    @property
+    def can_delete_orders(self) -> bool:
+        role = str(self.role or "").strip().lower()
+        return role in {Role.ADMIN.value, Role.MANAGER.value}
 
 
 class Order(TimestampMixin, db.Model):
@@ -127,6 +134,12 @@ class Order(TimestampMixin, db.Model):
         "Attachment", back_populates="order", cascade="all, delete-orphan"
     )
     audits = db.relationship("OrderAuditLog", back_populates="order", cascade="all, delete-orphan")
+    work_timing_entry = db.relationship(
+        "WorkTimingEntry",
+        back_populates="order",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     order_check = db.relationship(
         "OrderCheck",
         back_populates="order",
@@ -138,6 +151,12 @@ class Order(TimestampMixin, db.Model):
         back_populates="order",
         foreign_keys=[assignment_id],
         uselist=False,
+    )
+    assign_state = db.relationship(
+        "AssignOrderState",
+        back_populates="order",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
     def can_transition_to(self, target: OrderStatus):
@@ -392,4 +411,119 @@ class OrderNumberCounter(TimestampMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     pod_next_number = db.Column(db.Integer, nullable=False, default=1)
     ira_next_number = db.Column(db.Integer, nullable=False, default=1)
+    invoice_next_number = db.Column(db.Integer, nullable=False, default=1)
     sequence_width = db.Column(db.Integer, nullable=False, default=3)
+
+
+class AssignDesignerContact(TimestampMixin, db.Model):
+    __tablename__ = "assign_designer_contacts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    designer_name = db.Column(db.String(120), nullable=False, unique=True, index=True)
+    designer_email = db.Column(db.String(255), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+
+class AssignOrderState(TimestampMixin, db.Model):
+    __tablename__ = "assign_order_states"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(
+        db.Integer,
+        db.ForeignKey("orders.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    date_received = db.Column(db.Date, nullable=True, index=True)
+    date_shipping = db.Column(db.Date, nullable=True, index=True)
+    order_name = db.Column(db.String(255), nullable=False)
+    qty = db.Column(db.Integer, nullable=False, default=0)
+    status = db.Column(db.String(80), nullable=False, default="order sheet recieved", index=True)
+    assigned_designer_name = db.Column(db.String(120), nullable=True, index=True)
+    order_category = db.Column(db.String(40), nullable=True, index=True)
+    file_required = db.Column(db.String(8), nullable=True)
+    client_name = db.Column(db.String(255), nullable=True)
+    source = db.Column(db.String(24), nullable=False, default="system")
+
+    order = db.relationship("Order", back_populates="assign_state")
+    notifications = db.relationship(
+        "AssignNotificationEvent",
+        back_populates="assign_state",
+        cascade="all, delete-orphan",
+    )
+
+
+class AssignNotificationEvent(db.Model):
+    __tablename__ = "assign_notification_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    assign_state_id = db.Column(
+        db.Integer,
+        db.ForeignKey("assign_order_states.id"),
+        nullable=False,
+        index=True,
+    )
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.id"), nullable=False, index=True)
+    old_status = db.Column(db.String(80), nullable=True)
+    new_status = db.Column(db.String(80), nullable=False, index=True)
+    recipient_email = db.Column(db.String(255), nullable=True)
+    event_type = db.Column(db.String(80), nullable=False, index=True)
+    subject = db.Column(db.String(255), nullable=False)
+    delivery_result = db.Column(db.String(120), nullable=False, default="pending")
+    error_message = db.Column(db.Text, nullable=True)
+    sent_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    assign_state = db.relationship("AssignOrderState", back_populates="notifications")
+    order = db.relationship("Order")
+
+
+class WorkTimingEntry(TimestampMixin, db.Model):
+    __tablename__ = "work_timing_entries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(
+        db.Integer,
+        db.ForeignKey("orders.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    order_code = db.Column(db.String(120), nullable=False, index=True)
+    customer_name = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.String(50), nullable=False, index=True)
+    status_updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    deadline_at = db.Column(db.DateTime, nullable=True, index=True)
+    escalation_state = db.Column(db.String(20), nullable=False, default="NONE", index=True)
+    giri_alert_sent_at = db.Column(db.DateTime, nullable=True)
+    md_alert_sent_at = db.Column(db.DateTime, nullable=True)
+
+    order = db.relationship("Order", back_populates="work_timing_entry")
+    alert_events = db.relationship(
+        "WorkTimingAlertEvent",
+        back_populates="entry",
+        cascade="all, delete-orphan",
+    )
+
+
+class WorkTimingAlertEvent(db.Model):
+    __tablename__ = "work_timing_alert_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    entry_id = db.Column(
+        db.Integer,
+        db.ForeignKey("work_timing_entries.id"),
+        nullable=False,
+        index=True,
+    )
+    target = db.Column(db.String(16), nullable=False, index=True)
+    event_type = db.Column(db.String(40), nullable=False, index=True)
+    status_snapshot = db.Column(db.String(50), nullable=False)
+    deadline_snapshot = db.Column(db.DateTime, nullable=True)
+    delivery_mode = db.Column(db.String(20), nullable=False, default="log", index=True)
+    delivery_result = db.Column(db.String(120), nullable=False, default="logged")
+    provider_message_id = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    entry = db.relationship("WorkTimingEntry", back_populates="alert_events")

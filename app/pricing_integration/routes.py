@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from flask import Blueprint, current_app, flash, g, redirect, render_template, request, session, url_for
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import db
 from .datasheet import (
@@ -24,6 +24,7 @@ from .orders import (
     owner_metrics,
     update_order_rates_and_costs,
 )
+from app.models import Role, User
 
 pricing_bp = Blueprint(
     "pricing",
@@ -65,9 +66,12 @@ def load_current_user() -> None:
     g.pricing_fx_snapshot = get_daily_fx_snapshot()
     user_id = session.get("pricing_user_id")
     g.pricing_user = None
+    g.pricing_is_manager = bool(session.get("pricing_is_manager", False))
     if user_id is None:
         return
     g.pricing_user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if g.pricing_user is not None and str(g.pricing_user["role"]).strip().lower() == "owner":
+        g.pricing_is_manager = False
 
 
 @pricing_bp.before_request
@@ -100,9 +104,50 @@ def inject_globals() -> dict[str, Any]:
         "source_currency_code": current_app.config["PRICING_SOURCE_CURRENCY"],
         "fx_snapshot": g.get("pricing_fx_snapshot"),
         "is_owner": bool(g.get("pricing_user")) and g.pricing_user["role"] == "owner",
+        "is_manager": bool(g.get("pricing_is_manager")),
         "current_endpoint": request.endpoint,
         "pricing_csrf_token": get_pricing_csrf_token(),
     }
+
+
+def _find_order_creation_manager(raw_username: str) -> User | None:
+    token = str(raw_username or "").strip().lower()
+    if not token:
+        return None
+    return User.query.filter_by(
+        role=Role.MANAGER.value,
+        is_active_user=True,
+        email=token,
+    ).first()
+
+
+def _ensure_pricing_manager_user() -> dict[str, Any]:
+    manager = db.execute(
+        "SELECT * FROM users WHERE username = 'manager' LIMIT 1"
+    ).fetchone()
+    if manager is not None:
+        return dict(manager)
+    db.execute(
+        """
+        INSERT INTO users (username, password_hash, role)
+        VALUES (?, ?, ?)
+        """,
+        (
+            "manager",
+            generate_password_hash(secrets.token_urlsafe(24), method="pbkdf2:sha256"),
+            "employee",
+        ),
+    )
+    manager = db.execute(
+        "SELECT * FROM users WHERE username = 'manager' LIMIT 1"
+    ).fetchone()
+    if manager is None:
+        raise RuntimeError("Could not initialize pricing manager account")
+    return dict(manager)
+
+
+def _is_pricing_manager_session() -> bool:
+    return bool(g.get("pricing_is_manager"))
 
 
 def login_required(role: str | None = None) -> Callable:
@@ -129,18 +174,30 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        user = db.execute(
-            "SELECT * FROM users WHERE username = ?",
+        owner = db.execute(
+            "SELECT * FROM users WHERE username = ? AND role = 'owner'",
             (username,),
         ).fetchone()
-        if user is None or not check_password_hash(user["password_hash"], password):
-            flash("Invalid username or password.", "error")
+        manager_user = _find_order_creation_manager(username)
+
+        authenticated_user_id: int | None = None
+        is_manager_login = False
+        if owner is not None and check_password_hash(owner["password_hash"], password):
+            authenticated_user_id = int(owner["id"])
+        elif manager_user is not None and manager_user.check_password(password):
+            pricing_manager = _ensure_pricing_manager_user()
+            authenticated_user_id = int(pricing_manager["id"])
+            is_manager_login = True
         else:
+            flash("Invalid username or password.", "error")
+
+        if authenticated_user_id is not None:
             for key in [k for k in list(session.keys()) if k.startswith("pricing_")]:
                 session.pop(key, None)
             session["pricing_auth_nonce"] = secrets.token_hex(16)
             session["pricing_csrf_token"] = secrets.token_urlsafe(32)
-            session["pricing_user_id"] = user["id"]
+            session["pricing_user_id"] = authenticated_user_id
+            session["pricing_is_manager"] = bool(is_manager_login)
             # Keep pricing login persistent across browser restarts.
             session.permanent = True
             next_page = request.args.get("next", "").strip()
@@ -153,6 +210,7 @@ def login():
 @pricing_bp.route("/logout")
 def logout():
     session.pop("pricing_user_id", None)
+    session.pop("pricing_is_manager", None)
     return redirect(url_for("pricing.login"))
 
 
@@ -208,8 +266,8 @@ def order_detail(order_id: int):
         return redirect(url_for("pricing.orders"))
 
     if request.method == "POST":
-        if g.pricing_user["role"] != "owner":
-            flash("Only the owner can update order financials.", "error")
+        if not _is_pricing_manager_session():
+            flash("Only manager can update order financials.", "error")
             return redirect(url_for("pricing.order_detail", order_id=order_id))
         quoted_rates: dict[int, float | None] = {}
         for item in order["items"]:
@@ -262,6 +320,16 @@ def pricing_rules():
     }
     all_pricing_rules = list_pricing_rules()
     if request.method == "POST":
+        if not _is_pricing_manager_session():
+            flash("Only manager can update pricing rules.", "error")
+            return redirect(
+                url_for(
+                    "pricing.pricing_rules",
+                    q=filters["q"] or None,
+                    category=filters["category"] or None,
+                    sheet=filters["sheet"] or None,
+                )
+            )
         rule_id = int(request.form["rule_id"])
         raw_override = request.form.get("override_unit_rate_inr", "").strip()
         override = float(raw_override) if raw_override else None

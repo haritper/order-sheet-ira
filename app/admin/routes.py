@@ -21,7 +21,10 @@ def dashboard():
     pod_orders = [o for o in orders if str(getattr(o, "order_id", "") or "").strip().upper().startswith("POD-")]
     ira_orders = [o for o in orders if str(getattr(o, "production_order_id", "") or "").strip()]
     operators = (
-        User.query.filter_by(role=Role.OPERATOR.value, is_active_user=True)
+        User.query.filter(
+            User.is_active_user.is_(True),
+            User.role.in_([Role.OPERATOR.value, Role.MANAGER.value]),
+        )
         .order_by(User.full_name.asc(), User.id.asc())
         .all()
     )
@@ -120,14 +123,26 @@ def dashboard():
 def users():
     form = UserCreateForm()
     if form.validate_on_submit():
-        if User.query.filter_by(email=form.email.data.lower().strip()).first():
-            flash("User email already exists.", "danger")
+        username = str(form.username.data or "").strip().lower()
+        if User.query.filter_by(email=username).first():
+            flash("Username already exists.", "danger")
             return redirect(url_for("admin.users"))
+        requested_role = str(form.role.data or "").strip().lower()
+        if requested_role == Role.ADMIN.value:
+            existing_admin = User.query.filter(User.role == Role.ADMIN.value).first()
+            if existing_admin is not None:
+                flash("Only one admin user is allowed.", "danger")
+                return redirect(url_for("admin.users"))
+        if requested_role == Role.MANAGER.value:
+            existing_manager = User.query.filter(User.role == Role.MANAGER.value).first()
+            if existing_manager is not None:
+                flash("Only one manager user is allowed.", "danger")
+                return redirect(url_for("admin.users"))
 
         user = User(
-            full_name=form.full_name.data,
-            email=form.email.data.lower().strip(),
-            role=form.role.data,
+            full_name=username,
+            email=username,
+            role=requested_role,
         )
         user.set_password(form.password.data)
         db.session.add(user)
@@ -144,8 +159,9 @@ def users():
 @roles_required(Role.ADMIN.value)
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
-    if user.role != Role.OPERATOR.value:
-        flash("Only operator users can be deleted here.", "danger")
+    role = str(user.role or "").strip().lower()
+    if role not in {Role.OPERATOR.value, Role.MANAGER.value}:
+        flash("Only operator or manager users can be deleted here.", "danger")
         return redirect(url_for("admin.users"))
 
     linked_assignments = OrderAssignment.query.filter_by(operator_id=int(user.id)).count()
@@ -155,16 +171,19 @@ def delete_user(user_id):
 
     db.session.delete(user)
     db.session.commit()
-    flash("Operator deleted.", "success")
+    flash(f"{role.title()} deleted.", "success")
     return redirect(url_for("admin.users"))
 
 
 @admin_bp.route("/order-assignments", methods=["GET", "POST"])
 @login_required
-@roles_required(Role.ADMIN.value)
+@roles_required(Role.ADMIN.value, Role.MANAGER.value)
 def order_assignments():
     operators = (
-        User.query.filter_by(role=Role.OPERATOR.value, is_active_user=True)
+        User.query.filter(
+            User.is_active_user.is_(True),
+            User.role.in_([Role.OPERATOR.value, Role.MANAGER.value]),
+        )
         .order_by(User.full_name.asc(), User.id.asc())
         .all()
     )
@@ -248,14 +267,21 @@ def order_id_counters():
     if request.method == "POST":
         pod_raw = str(request.form.get("pod_next_number", "") or "").strip()
         ira_raw = str(request.form.get("ira_next_number", "") or "").strip()
+        invoice_raw = str(
+            request.form.get("invoice_next_number", getattr(counters, "invoice_next_number", 1)) or ""
+        ).strip()
         if not pod_raw.isdigit() or int(pod_raw) <= 0:
             flash("POD next custom number must be a positive number.", "danger")
             return redirect(url_for("admin.order_id_counters"))
         if not ira_raw.isdigit() or int(ira_raw) <= 0:
             flash("IRA next custom number must be a positive number.", "danger")
             return redirect(url_for("admin.order_id_counters"))
+        if not invoice_raw.isdigit() or int(invoice_raw) <= 0:
+            flash("Invoice next custom number must be a positive number.", "danger")
+            return redirect(url_for("admin.order_id_counters"))
         counters.pod_next_number = int(pod_raw)
         counters.ira_next_number = int(ira_raw)
+        counters.invoice_next_number = int(invoice_raw)
         db.session.commit()
         flash("Order ID counters updated.", "success")
         return redirect(url_for("admin.order_id_counters"))

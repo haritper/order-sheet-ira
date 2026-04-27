@@ -4,12 +4,12 @@
 <section class="hero">
   <div>
     <p class="eyebrow">{{ pricing_current_user['role'] }}</p>
-    <h2>{{ "Owner" if pricing_current_user['role'] == 'owner' else "Employee" }} Dashboard</h2>
+    <h2>{{ "Owner" if pricing_current_user['role'] == 'owner' else "Manager" }} Dashboard</h2>
     <p class="muted">
       {% if pricing_current_user['role'] == 'owner' %}
       Monitor margins, landed cost, and pricing behavior across all orders in {{ currency_code }}.
       {% else %}
-      Upload order sheets and manage the base pricing matrix in {{ source_currency_code }}. Order pricing stays owner-only.
+      Upload order sheets and manage the base pricing matrix in {{ source_currency_code }}. Pricing value updates are manager-enabled.
       {% endif %}
     </p>
   </div>
@@ -110,7 +110,7 @@
           <span>Suggested {{ track.suggested|usd }}</span>
           <span>Quoted {{ track.quoted|usd }}</span>
           {% else %}
-          <span>Operational pricing hidden for employee access</span>
+          <span>Operational pricing hidden for non-owner view</span>
           {% endif %}
         </div>
       </div>

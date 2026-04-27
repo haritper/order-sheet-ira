@@ -18,3 +18,4 @@ openpyxl==3.1.5
 fpdf2==2.8.2
 PyMuPDF==1.26.5
 boto3==1.39.11
+requests==2.32.3

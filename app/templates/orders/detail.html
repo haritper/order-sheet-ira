@@ -18,7 +18,7 @@
 <div class="card subtle">
   <p><strong>Status:</strong> {{ order.status }}</p>
   <p><strong>Customer:</strong> {{ order.customer_name }} | {{ order.mobile }}</p>
-  <p><strong>Created By:</strong> {{ created_by_email }}</p>
+  <p><strong>Created By:</strong> {{ created_by_username }}</p>
   <p><strong>Address:</strong> {{ order.shipping_address }}, {{ order.city }}, {{ order.state }} {{ order.zip_code }}, {{ order.country }}</p>
   <p><strong>Checklist:</strong>
     {% if checklist_complete %}

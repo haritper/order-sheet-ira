@@ -1,6 +1,7 @@
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
+import re
 import uuid
 
 from flask import (
@@ -8,6 +9,7 @@ from flask import (
     abort,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -32,6 +34,7 @@ from app.models import (
     User,
 )
 from app.orders.forms import OrderHeaderForm, Step2Form, Step4ApprovalForm
+from app.integrations.customer_plan_webhook import send_customer_plan_webhook
 from app.orders.access import can_user_access_order
 from app.order_numbers import get_or_assign_ira_order_id
 from app.orders.overview import (
@@ -74,6 +77,12 @@ from app.orders.services import (
 )
 from app.exports.services import collect_plan_render_stats, render_order_pdf, save_plan_pdf
 from app.pricing_integration.integration import ingest_production_plan_for_order
+from app.work_timing.services import (
+    ensure_work_timing_entry,
+    get_next_status,
+    update_work_timing_status,
+    upsert_customer_approval_timing_entry,
+)
 from app.storage import (
     ORDER_DOCUMENT_SECTION,
     delete_order_storage,
@@ -92,6 +101,16 @@ except Exception:  # pragma: no cover
 orders_bp = Blueprint("orders", __name__, url_prefix="/orders")
 
 INVOICE_RECEIPT_ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg"}
+E164_MOBILE_REGEX = re.compile(r"^\+[1-9]\d{7,14}$")
+
+
+def _is_operator_scope_role(role_value: str | None) -> bool:
+    role = str(role_value or "").strip().lower()
+    return role in {Role.OPERATOR.value, Role.MANAGER.value}
+
+
+def _is_operator_scope_user(user) -> bool:
+    return _is_operator_scope_role(getattr(user, "role", ""))
 
 
 def _safe_int(value, default=0):
@@ -99,6 +118,16 @@ def _safe_int(value, default=0):
         return int(value or 0)
     except (TypeError, ValueError):
         return default
+
+
+def _normalize_mobile(value: str) -> str:
+    cleaned = str(value or "").strip()
+    cleaned = cleaned.replace(" ", "").replace("-", "")
+    return cleaned
+
+
+def _is_valid_mobile_e164(value: str) -> bool:
+    return bool(E164_MOBILE_REGEX.match(_normalize_mobile(value)))
 
 
 def _checklist_preview_signature(order: Order) -> str:
@@ -156,7 +185,7 @@ def _get_checklist_preview_pdf(order: Order, *, force_refresh: bool = False) -> 
 
 
 def _operator_assignment_choices(order: Order):
-    if str(getattr(current_user, "role", "")).strip().lower() != Role.OPERATOR.value:
+    if not _is_operator_scope_user(current_user):
         return []
     base_query = OrderAssignment.query.filter(OrderAssignment.operator_id == int(current_user.id))
     if getattr(order, "assignment_id", None):
@@ -224,7 +253,7 @@ def _latest_reusable_tmp_order_for_operator(user_id: int) -> Order | None:
 
 
 def _mark_assignment_completed_on_checklist_entry(order: Order):
-    if str(getattr(current_user, "role", "")).strip().lower() != Role.OPERATOR.value:
+    if not _is_operator_scope_user(current_user):
         return
     assignment = getattr(order, "assignment", None)
     if assignment is None:
@@ -283,7 +312,7 @@ def _latest_plan_attachment_id(order_id: int, plan_slug: str) -> int | None:
     return int(row.id)
 
 
-def _resolve_order_creator_emails(order_ids):
+def _resolve_order_creator_usernames(order_ids):
     ids = [int(v) for v in (order_ids or []) if v is not None]
     if not ids:
         return {}
@@ -300,17 +329,14 @@ def _resolve_order_creator_emails(order_ids):
         .all()
     )
 
-    def _to_username(email_value):
-        raw = str(email_value or "").strip().lower()
-        if "@" in raw:
-            local = raw.split("@", 1)[0].strip()
-            return local or "Unknown"
+    def _to_username(username_value):
+        raw = str(username_value or "").strip().lower()
         return raw or "Unknown"
 
     create_map = {}
     fallback_map = {}
-    for order_id, action, email in rows:
-        username = _to_username(email)
+    for order_id, action, username_raw in rows:
+        username = _to_username(username_raw)
         if not fallback_map.get(order_id):
             fallback_map[order_id] = username
         if str(action or "").strip().upper() == "CREATE_ORDER" and not create_map.get(order_id):
@@ -832,9 +858,8 @@ def list_orders():
 
     query = Order.query
     operator_dashboard = None
-    is_operator_only = (
-        str(getattr(current_user, "role", "")).strip().lower() == Role.OPERATOR.value
-        and not bool(getattr(current_user, "has_admin_panel_access", False))
+    is_operator_only = _is_operator_scope_user(current_user) and not bool(
+        getattr(current_user, "has_admin_panel_access", False)
     )
     if is_operator_only:
         query = query.join(OrderAssignment, Order.assignment_id == OrderAssignment.id).filter(
@@ -887,7 +912,7 @@ def list_orders():
         query = query.filter(Order.status == status)
 
     orders = query.order_by(Order.created_at.desc()).all()
-    creator_map = _resolve_order_creator_emails([o.id for o in orders])
+    creator_map = _resolve_order_creator_usernames([o.id for o in orders])
     return render_template(
         "orders/list.html",
         orders=orders,
@@ -900,10 +925,11 @@ def list_orders():
 
 @orders_bp.route("/new", methods=["GET", "POST"])
 @login_required
+@roles_required(Role.OPERATOR.value, Role.MANAGER.value)
 def create_order():
     form = OrderHeaderForm()
-    is_operator = str(getattr(current_user, "role", "")).strip().lower() == Role.OPERATOR.value
-    if is_operator and request.method == "GET":
+    is_operator = _is_operator_scope_user(current_user)
+    if is_operator:
         reusable = _latest_reusable_tmp_order_for_operator(int(current_user.id))
         if reusable is not None:
             return redirect(url_for("orders.edit_order", order_id=reusable.id, step=1))
@@ -935,9 +961,6 @@ def create_order():
         flash("Order created. Continue with Step 1.", "success")
         return redirect(url_for("orders.edit_order", order_id=order.id, step=1))
 
-    if is_operator and request.method == "POST":
-        return redirect(url_for("orders.create_order"))
-
     if form.validate_on_submit():
         order = Order()
         update_step1(order, form.data)
@@ -967,8 +990,8 @@ def create_order():
 def order_detail(order_id):
     order = Order.query.get_or_404(order_id)
     _enforce_order_access(order)
-    creator_map = _resolve_order_creator_emails([order.id])
-    created_by_email = creator_map.get(order.id, "Unknown")
+    creator_map = _resolve_order_creator_usernames([order.id])
+    created_by_username = creator_map.get(order.id, "Unknown")
     parsed = get_parsed_json(order.order_check) if order.order_check else {}
     checklist_state = load_checklist_state(order)
     checklist_complete, checklist_missing = checklist_completion_status(order, checklist_state)
@@ -982,7 +1005,7 @@ def order_detail(order_id):
         checklist_complete=checklist_complete,
         checklist_missing=checklist_missing[:5],
         cutting_rows=cutting_rows,
-        created_by_email=created_by_email,
+        created_by_username=created_by_username,
     )
 
 
@@ -1019,7 +1042,7 @@ def edit_order(order_id):
         "missing_count": len(checklist_missing),
     }
     show_assignment_dropdown = (
-        str(getattr(current_user, "role", "")).strip().lower() == Role.OPERATOR.value
+        _is_operator_scope_user(current_user)
     )
     assignment_choices = _operator_assignment_choices(order)
     selected_assignment_id = int(order.assignment_id) if order.assignment_id else None
@@ -1174,7 +1197,7 @@ def edit_order(order_id):
 
 @orders_bp.route("/<int:order_id>/checklist", methods=["GET", "POST"])
 @login_required
-@roles_required(Role.ADMIN.value, Role.OPERATOR.value)
+@roles_required(Role.ADMIN.value, Role.OPERATOR.value, Role.MANAGER.value)
 def verify_order(order_id):
     order = Order.query.get_or_404(order_id)
     _enforce_order_access(order)
@@ -1217,7 +1240,13 @@ def verify_order(order_id):
     flow_defaults = {
         "customer_plan_generated": False,
         "customer_plan_attachment_id": None,
+        "customer_plan_last_sent_at": None,
+        "customer_plan_last_send_status": "",
+        "customer_plan_last_send_error": "",
+        "customer_plan_last_sent_attachment_id": None,
         "customer_approved": False,
+        "customer_approved_at": None,
+        "customer_approval_source": "",
         "invoice_receipt_uploaded": False,
         "invoice_receipt_attachment_id": None,
         "invoice_receipt_filename": "",
@@ -1312,7 +1341,8 @@ def verify_order(order_id):
         return bool(flow.get("invoice_receipt_uploaded", False))
 
     def _invoice_receipt_is_required() -> bool:
-        return bool(current_app.config.get("INVOICE_RECEIPT_REQUIRED", False))
+        # Receipt is required by default; env/config can only tighten, not loosen.
+        return bool(current_app.config.get("INVOICE_RECEIPT_REQUIRED", True))
 
     if request.method == "POST":
         if "overview_pdf_page" in request.form:
@@ -1334,10 +1364,19 @@ def verify_order(order_id):
 
         is_customer_verify_action = "set_customer_verified" in request.form
         is_invoice_receipt_action = "set_invoice_receipt" in request.form
+        is_customer_mobile_action = "set_customer_mobile_generate_customer_plan" in request.form
+        is_resend_customer_plan_action = "resend_customer_plan_webhook" in request.form
         show_invoice_dialog_after_redirect = False
+        show_mobile_dialog_after_redirect = False
+        generate_after_mobile_capture = False
         responses = {}
         merged_responses = {}
-        if is_customer_verify_action or is_invoice_receipt_action:
+        if (
+            is_customer_verify_action
+            or is_invoice_receipt_action
+            or is_customer_mobile_action
+            or is_resend_customer_plan_action
+        ):
             # Modal submit does not include checklist checkboxes; preserve existing checks.
             merged_responses = dict(dynamic_responses or {})
             core_order_verified = bool(
@@ -1409,6 +1448,8 @@ def verify_order(order_id):
             else:
                 is_verified = verify_choice == "yes"
                 flow["customer_approved"] = is_verified
+                flow["customer_approved_at"] = datetime.utcnow().isoformat() if is_verified else None
+                flow["customer_approval_source"] = "manual"
                 if not is_verified:
                     flow["production_plan_generated"] = False
                 if is_verified:
@@ -1424,7 +1465,11 @@ def verify_order(order_id):
             elif not bool(flow.get("customer_approved", False)):
                 flash("Customer verification is required before invoice receipt.", "danger")
             elif "skip_invoice_receipt" in request.form:
-                flash("Invoice receipt skipped for now.", "info")
+                if _invoice_receipt_is_required():
+                    flash("Invoice receipt is mandatory. Please upload the receipt to continue.", "danger")
+                    show_invoice_dialog_after_redirect = True
+                else:
+                    flash("Invoice receipt skipped for now.", "info")
             elif "upload_invoice_receipt" in request.form:
                 receipt_file = request.files.get("invoice_receipt")
                 if not receipt_file or not str(receipt_file.filename or "").strip():
@@ -1460,6 +1505,16 @@ def verify_order(order_id):
                         flash("Invoice receipt uploaded.", "success")
             else:
                 show_invoice_dialog_after_redirect = True
+        elif is_customer_mobile_action:
+            mobile_raw = str(request.form.get("customer_mobile", "") or "").strip()
+            normalized_mobile = _normalize_mobile(mobile_raw)
+            if not _is_valid_mobile_e164(normalized_mobile):
+                flash("Customer mobile must be in +countrycode format (example: +919876543210).", "danger")
+                show_mobile_dialog_after_redirect = True
+            else:
+                order.mobile = normalized_mobile
+                generate_after_mobile_capture = True
+                flash("Customer mobile saved.", "success")
         else:
             flow["customer_approved"] = bool(flow.get("customer_approved", False))
         for key in ["shipping_address", "city", "state", "zip_code", "country"]:
@@ -1476,6 +1531,28 @@ def verify_order(order_id):
             return redirect(url_for("orders.verify_order", order_id=order.id, show_invoice_dialog=1))
         if is_invoice_receipt_action and show_invoice_dialog_after_redirect:
             return redirect(url_for("orders.verify_order", order_id=order.id, show_invoice_dialog=1))
+        if is_customer_mobile_action and show_mobile_dialog_after_redirect:
+            return redirect(url_for("orders.verify_order", order_id=order.id, show_mobile_dialog=1))
+
+        def _persist_webhook_result(result: dict, attachment_id: int):
+            sent_at = datetime.utcnow().isoformat()
+            flow["customer_plan_last_sent_at"] = sent_at
+            flow["customer_plan_last_sent_attachment_id"] = int(attachment_id)
+            if bool(result.get("success", False)):
+                upsert_customer_approval_timing_entry(order)
+                flow["customer_plan_last_send_status"] = "success"
+                flow["customer_plan_last_send_error"] = ""
+                flash("Customer plan sent to n8n webhook.", "success")
+            else:
+                flow["customer_plan_last_send_status"] = "failed"
+                flow["customer_plan_last_send_error"] = str(result.get("message", "") or "").strip()
+                flash(
+                    f"Customer plan generated, but webhook failed: {flow['customer_plan_last_send_error']}",
+                    "warning",
+                )
+            state["flow"] = flow
+            save_checklist_state(order, state)
+            db.session.commit()
 
         if "mark_ready" in request.form:
             done, missing = checklist_completion_status(order, state)
@@ -1483,12 +1560,15 @@ def verify_order(order_id):
             final_ready = order_check.is_final_ready()
             qty_pass = _quantity_comparison_pass()
             prod_plan_done = bool(flow.get("production_plan_generated", False))
-            if not done or dyn_missing or not final_ready or not qty_pass or not prod_plan_done:
+            invoice_receipt_ok = (not _invoice_receipt_is_required()) or _invoice_receipt_uploaded()
+            if not done or dyn_missing or not final_ready or not qty_pass or not prod_plan_done or not invoice_receipt_ok:
                 flash("Checklist is incomplete. Please complete all checks.", "danger")
                 for msg in missing[:8]:
                     flash(msg, "warning")
                 for msg in dyn_missing[:8]:
                     flash(msg, "warning")
+                if not invoice_receipt_ok:
+                    flash("Upload invoice receipt before marking ready for approval.", "warning")
                 if not qty_pass:
                     flash("Quantity comparison has mismatches. Resolve before marking ready.", "warning")
                 if not prod_plan_done:
@@ -1502,7 +1582,7 @@ def verify_order(order_id):
                 else:
                     flash("Checklist saved.", "success")
                 return redirect(url_for("orders.order_detail", order_id=order.id))
-        elif "generate_customer_plan" in request.form:
+        elif "generate_customer_plan" in request.form or generate_after_mobile_capture:
             done, _missing = checklist_completion_status(order, state)
             dyn_missing = _dynamic_missing_list()
             final_ready = order_check.is_final_ready()
@@ -1510,6 +1590,10 @@ def verify_order(order_id):
             if not done or dyn_missing or not final_ready or not qty_pass:
                 flash("Complete checklist and quantity comparison before generating customer plan.", "danger")
             else:
+                customer_mobile = _normalize_mobile(str(getattr(order, "mobile", "") or ""))
+                if not _is_valid_mobile_e164(customer_mobile):
+                    flash("Customer mobile is required in +countrycode format before generating customer plan.", "danger")
+                    return redirect(url_for("orders.verify_order", order_id=order.id, show_mobile_dialog=1))
                 customer_pdf, attachment = _render_and_store_plan_pdf(
                     order,
                     "customer-plan",
@@ -1522,6 +1606,16 @@ def verify_order(order_id):
                 state["flow"] = flow
                 save_checklist_state(order, state)
                 db.session.commit()
+
+                webhook_result = send_customer_plan_webhook(
+                    order_id=int(order.id),
+                    enquiry_id=str(order.order_id or ""),
+                    customer_name=str(order.customer_name or ""),
+                    customer_mobile=customer_mobile,
+                    attachment_filename=str(attachment.filename or ""),
+                    pdf_bytes=customer_pdf,
+                )
+                _persist_webhook_result(webhook_result, int(attachment.id))
                 flash("Customer plan generated. Verify customer response to continue.", "success")
                 return redirect(
                     url_for(
@@ -1531,6 +1625,34 @@ def verify_order(order_id):
                         download_customer_plan=1,
                     )
                 )
+        elif is_resend_customer_plan_action:
+            attachment_id = _latest_plan_attachment_id(order.id, "customer-plan")
+            if not bool(flow.get("customer_plan_generated", False)) or not attachment_id:
+                flash("Generate customer plan first.", "danger")
+            else:
+                customer_mobile = _normalize_mobile(str(getattr(order, "mobile", "") or ""))
+                if not _is_valid_mobile_e164(customer_mobile):
+                    flash("Customer mobile is required in +countrycode format before resend.", "danger")
+                    return redirect(url_for("orders.verify_order", order_id=order.id, show_mobile_dialog=1))
+                attachment = Attachment.query.filter_by(id=int(attachment_id), order_id=int(order.id)).first()
+                if not attachment:
+                    flash("Customer plan attachment not found for resend.", "danger")
+                else:
+                    try:
+                        pdf_bytes = read_bytes(attachment.storage_path)
+                    except Exception as exc:
+                        current_app.logger.exception("Failed to read customer plan PDF for resend: %s", exc)
+                        flash("Could not read customer plan PDF for resend.", "danger")
+                    else:
+                        webhook_result = send_customer_plan_webhook(
+                            order_id=int(order.id),
+                            enquiry_id=str(order.order_id or ""),
+                            customer_name=str(order.customer_name or ""),
+                            customer_mobile=customer_mobile,
+                            attachment_filename=str(attachment.filename or ""),
+                            pdf_bytes=pdf_bytes,
+                        )
+                        _persist_webhook_result(webhook_result, int(attachment.id))
         elif "generate_production_plan" in request.form:
             if not bool(flow.get("customer_plan_generated", False)):
                 flash("Generate customer plan first.", "danger")
@@ -1559,6 +1681,11 @@ def verify_order(order_id):
 
                 flow["production_plan_generated"] = True
                 flow["production_plan_attachment_id"] = attachment.id
+                timing_entry = ensure_work_timing_entry(order)
+                timing_status = str(getattr(timing_entry, "status", "") or "").strip().upper()
+                if timing_status == "CUSTOMER APPROVAL":
+                    next_status = get_next_status(timing_status) or "PP SAMPLE SENT FOR APPROVAL"
+                    update_work_timing_status(timing_entry, next_status)
                 state["flow"] = flow
                 save_checklist_state(order, state)
                 db.session.commit()
@@ -1607,6 +1734,7 @@ def verify_order(order_id):
         bool(flow.get("customer_plan_generated", False))
         and bool(flow.get("customer_approved", False))
         and shipping_complete
+        and ((not _invoice_receipt_is_required()) or _invoice_receipt_uploaded())
     )
     preview_image_supported = fitz is not None
     preview_page_count = 1
@@ -1636,14 +1764,114 @@ def verify_order(order_id):
         cutting_plan_unlocked=cutting_plan_unlocked,
         show_customer_dialog=(request.args.get("show_customer_dialog", "0") == "1"),
         show_invoice_dialog=(request.args.get("show_invoice_dialog", "0") == "1"),
+        show_mobile_dialog=(request.args.get("show_mobile_dialog", "0") == "1"),
         download_customer_plan=(request.args.get("download_customer_plan", "0") == "1"),
         latest_customer_plan_attachment_id=latest_customer_plan_attachment_id,
     )
 
 
+@orders_bp.route("/customer-plan/status-update", methods=["POST"])
+def customer_plan_status_update():
+    expected = str(current_app.config.get("CUSTOMER_PLAN_WEBHOOK_TOKEN", "") or "").strip()
+    if not expected:
+        return jsonify({"ok": False, "error": "customer_plan_webhook_token_not_configured"}), 500
+
+    headers = request.headers
+    received = (
+        str(headers.get("X-Webhook-Token", "") or "").strip()
+        or str(headers.get("X-Internal-Token", "") or "").strip()
+        or str(headers.get("x-webhook-token", "") or "").strip()
+        or str(headers.get("x-internal-token", "") or "").strip()
+    )
+    if received != expected:
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    payload = request.get_json(silent=True) if request.is_json else None
+    if not isinstance(payload, dict):
+        payload = request.form.to_dict(flat=True)
+    if not isinstance(payload, dict):
+        payload = {}
+    nested_payload = payload.get("payload")
+    if isinstance(nested_payload, dict):
+        payload = nested_payload
+
+    order_ref = str(payload.get("order_id", "") or "").strip()
+    status = str(payload.get("status", "") or "").strip().lower()
+    if not order_ref:
+        return jsonify({"ok": False, "error": "missing_order_id"}), 400
+    if status not in {"approved", "changes_requested", "not_approved", "rejected", "pending"}:
+        return jsonify({"ok": False, "error": "invalid_status"}), 400
+
+    order = None
+    try:
+        order = Order.query.filter_by(id=int(order_ref)).first()
+    except ValueError:
+        order = Order.query.filter(
+            or_(
+                Order.order_id == order_ref,
+                Order.production_order_id == order_ref,
+            )
+        ).first()
+
+    if order is None:
+        return jsonify({"ok": False, "error": "order_not_found"}), 404
+
+    state = load_checklist_state(order)
+    flow = state.get("flow", {}) if isinstance(state, dict) else {}
+    if not isinstance(flow, dict):
+        flow = {}
+
+    changed = False
+    timing_transition_applied = False
+    timing_status_before = None
+    timing_status_after = None
+    now_iso = datetime.utcnow().isoformat()
+    if status == "approved":
+        flow["customer_approved"] = True
+        flow["customer_approved_at"] = now_iso
+        flow["customer_approval_source"] = "webhook"
+        changed = True
+        timing_entry = ensure_work_timing_entry(order)
+        timing_status_before = str(timing_entry.status or "").strip()
+        if timing_status_before == "CUSTOMER APPROVAL":
+            next_status = get_next_status(timing_status_before) or "PP SAMPLE SENT FOR APPROVAL"
+            timing_transition_applied = update_work_timing_status(timing_entry, next_status)
+        timing_status_after = str(timing_entry.status or "").strip()
+    elif status in {"changes_requested", "not_approved", "rejected"}:
+        flow["customer_approved"] = False
+        flow["customer_approved_at"] = None
+        flow["customer_approval_source"] = "webhook"
+        flow["production_plan_generated"] = False
+        flow["production_plan_attachment_id"] = None
+        flow["invoice_receipt_uploaded"] = False
+        flow["invoice_receipt_attachment_id"] = None
+        flow["invoice_receipt_filename"] = ""
+        changed = True
+
+    if changed:
+        state["flow"] = flow
+        save_checklist_state(order, state)
+
+    if changed or timing_transition_applied:
+        db.session.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "order_id": int(order.id),
+            "status": status,
+            "customer_approved": bool(flow.get("customer_approved", False)),
+            "changed": bool(changed),
+            "work_timing_status_before": timing_status_before,
+            "work_timing_status_after": timing_status_after,
+            "work_timing_moved_next": bool(timing_transition_applied),
+        }
+    )
+
+
 @orders_bp.route("/<int:order_id>/analysis/run", methods=["POST"])
 @login_required
-@roles_required(Role.ADMIN.value, Role.OPERATOR.value)
+@roles_required(Role.ADMIN.value, Role.OPERATOR.value, Role.MANAGER.value)
 def run_analysis(order_id):
     order = Order.query.get_or_404(order_id)
     _enforce_order_access(order)
@@ -1664,7 +1892,7 @@ def run_analysis(order_id):
 
 @orders_bp.route("/<int:order_id>/cutting-plan")
 @login_required
-@roles_required(Role.ADMIN.value, Role.OPERATOR.value)
+@roles_required(Role.ADMIN.value, Role.OPERATOR.value, Role.MANAGER.value)
 def cutting_plan(order_id):
     order = Order.query.get_or_404(order_id)
     _enforce_order_access(order)
@@ -1692,7 +1920,7 @@ def cutting_plan(order_id):
 
 @orders_bp.route("/<int:order_id>/cutting-plan.pdf")
 @login_required
-@roles_required(Role.ADMIN.value, Role.OPERATOR.value)
+@roles_required(Role.ADMIN.value, Role.OPERATOR.value, Role.MANAGER.value)
 def cutting_plan_pdf(order_id):
     order = Order.query.get_or_404(order_id)
     _enforce_order_access(order)
@@ -1847,7 +2075,7 @@ def approve_order(order_id):
 
 @orders_bp.route("/<int:order_id>/delete", methods=["POST"])
 @login_required
-@roles_required(Role.ADMIN.value)
+@roles_required(Role.ADMIN.value, Role.MANAGER.value)
 def delete_order(order_id):
     order = Order.query.get_or_404(order_id)
     provided_pin = str(request.form.get("delete_pin", "") or "")

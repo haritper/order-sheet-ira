@@ -19,9 +19,9 @@ def app():
     app = create_app(TestConfig)
     with app.app_context():
         db.create_all()
-        admin = User(email="admin@example.com", full_name="Admin", role=Role.ADMIN.value)
+        admin = User(email="admin", full_name="Admin", role=Role.ADMIN.value)
         admin.set_password("Password123")
-        operator = User(email="giri@gmail.com", full_name="Giri", role=Role.OPERATOR.value)
+        operator = User(email="giri", full_name="Giri", role=Role.OPERATOR.value)
         operator.set_password("Password123")
         db.session.add(admin)
         db.session.add(operator)

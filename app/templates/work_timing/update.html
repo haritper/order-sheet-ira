@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% block title %}Time and Action{% endblock %}
+{% block content %}
+<section class="wt-page">
+  <section class="card wt-title-strip">
+    <div class="wt-title-left">
+      <img class="wt-inline-logo" src="{{ url_for('static', filename=brand_logo_filename) }}" alt="IRA logo">
+      <h2>Time and Action (T&amp;A)</h2>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-head">
+      <div class="wt-tabs" role="tablist" aria-label="Order sheets">
+        <a class="wt-tab active" href="{{ url_for('work_timing.update_page') }}" role="tab" aria-selected="true">Order Status Grid</a>
+        <a class="wt-tab" href="{{ url_for('work_timing.delivered_page') }}" role="tab" aria-selected="false">Delivered</a>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('work_timing.bulk_update_status') }}" class="js-wt-bulk-form">
+      <div class="wt-bulk-toolbar">
+        <p class="wt-note">Change statuses in rows, tick one checkbox, then click Save Selected.</p>
+        <div class="row" style="gap:.75rem;">
+          <label class="wt-confirm" for="bulk-confirm">
+            <input id="bulk-confirm" class="js-bulk-confirm" type="checkbox" name="bulk_confirm" value="1">
+            Confirm bulk save
+          </label>
+          <button class="btn btn-small js-save-selected is-disabled" type="submit" disabled>Save Selected</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer Name</th>
+              <th>Status</th>
+              <th>Timer</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if entries %}
+              {% for entry in entries %}
+              <tr class="js-wt-row" data-entry-id="{{ entry.id }}" data-current-status="{{ entry.status }}">
+                <td><strong>{{ entry.order_code }}</strong></td>
+                <td>{{ entry.customer_name }}</td>
+                <td>
+                  <select name="status_{{ entry.id }}" aria-label="Status for {{ entry.order_code }}" class="js-status-select">
+                    {% for option in status_choices_by_entry_id.get(entry.id, [entry.status]) %}
+                    <option value="{{ option }}" {% if entry.status == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                  </select>
+                  <input type="hidden" name="current_status_{{ entry.id }}" value="{{ entry.status }}">
+                </td>
+                <td class="timer-cell">
+                  <span
+                    class="js-wt-timer"
+                    data-deadline="{{ entry.deadline_at.isoformat() if entry.deadline_at else '' }}"
+                    data-total-seconds="{% if entry.deadline_at and entry.status_updated_at %}{{ ((entry.deadline_at - entry.status_updated_at).total_seconds())|int }}{% endif %}"
+                  >
+                    {% if entry.deadline_at %}
+                    Calculating...
+                    {% else %}
+                    No timer
+                    {% endif %}
+                  </span>
+                </td>
+                <td>
+                  <button class="btn btn-small js-save-row is-disabled" type="submit" name="single_update_id" value="{{ entry.id }}" disabled>Save</button>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+            <tr>
+              <td colspan="5" class="muted">No production-plan entries yet.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </form>
+  </section>
+</section>
+<script>
+  (function () {
+    function formatDuration(totalSeconds) {
+      var seconds = Math.max(0, totalSeconds);
+      var days = Math.floor(seconds / 86400);
+      seconds = seconds % 86400;
+      var hours = Math.floor(seconds / 3600);
+      seconds = seconds % 3600;
+      var minutes = Math.floor(seconds / 60);
+      var parts = [];
+      if (days > 0) parts.push(days + "d");
+      parts.push(hours + "h");
+      parts.push(minutes + "m");
+      return parts.join(" ");
+    }
+
+    function refreshTimers() {
+      var now = new Date();
+      var timers = document.querySelectorAll(".js-wt-timer");
+      timers.forEach(function (el) {
+        var deadlineRaw = el.getAttribute("data-deadline");
+        var totalSecondsRaw = el.getAttribute("data-total-seconds");
+        var totalSeconds = parseInt(totalSecondsRaw || "0", 10);
+        if (!deadlineRaw) {
+          el.textContent = "No timer";
+          el.classList.add("timer-none");
+          el.classList.remove("timer-green", "timer-yellow", "timer-red");
+          return;
+        }
+        var deadline = new Date(deadlineRaw + "Z");
+        var remaining = Math.floor((deadline.getTime() - now.getTime()) / 1000);
+        if (remaining >= 0) {
+          el.textContent = "Time left: " + formatDuration(remaining);
+          var remainingPercent = totalSeconds > 0 ? (remaining / totalSeconds) * 100 : 0;
+          el.classList.remove("timer-none", "timer-green", "timer-yellow", "timer-red");
+          if (remainingPercent > 70) {
+            el.classList.add("timer-green");
+          } else if (remainingPercent >= 40) {
+            el.classList.add("timer-yellow");
+          } else {
+            el.classList.add("timer-red");
+          }
+        } else {
+          el.textContent = "Overdue by: " + formatDuration(Math.abs(remaining));
+          el.classList.add("timer-red");
+          el.classList.remove("timer-green", "timer-yellow", "timer-none");
+        }
+      });
+    }
+
+    refreshTimers();
+    window.setInterval(refreshTimers, 30000);
+
+    var bulkForm = document.querySelector(".js-wt-bulk-form");
+    var bulkSaveButton = document.querySelector(".js-save-selected");
+    var bulkConfirm = document.querySelector(".js-bulk-confirm");
+    var rows = document.querySelectorAll(".js-wt-row");
+
+    function refreshBulkButtonState() {
+      if (!bulkSaveButton || !bulkConfirm) return;
+      var changedRows = 0;
+      rows.forEach(function (row) {
+        var select = row.querySelector(".js-status-select");
+        var currentStatus = row.getAttribute("data-current-status") || "";
+        if (select && (select.value || "") !== currentStatus) changedRows += 1;
+      });
+      var canBulkSave = bulkConfirm.checked && changedRows > 0;
+      bulkSaveButton.disabled = !canBulkSave;
+      bulkSaveButton.classList.toggle("is-disabled", !canBulkSave);
+    }
+
+    rows.forEach(function (row) {
+      var currentStatus = row.getAttribute("data-current-status") || "";
+      var select = row.querySelector(".js-status-select");
+      var rowButton = row.querySelector(".js-save-row");
+      if (!select || !rowButton) return;
+
+      function syncRowState() {
+        var changed = (select.value || "") !== currentStatus;
+        rowButton.disabled = !changed;
+        rowButton.classList.toggle("is-disabled", !changed);
+        refreshBulkButtonState();
+      }
+
+      select.addEventListener("change", syncRowState);
+      syncRowState();
+    });
+
+    if (bulkConfirm) {
+      bulkConfirm.addEventListener("change", refreshBulkButtonState);
+    }
+
+    if (bulkForm) {
+      bulkForm.addEventListener("submit", function (event) {
+        var isSingleSave = event.submitter && event.submitter.name === "single_update_id";
+        if (!isSingleSave) {
+          var hasChanges = false;
+          rows.forEach(function (row) {
+            var select = row.querySelector(".js-status-select");
+            var currentStatus = row.getAttribute("data-current-status") || "";
+            if (select && (select.value || "") !== currentStatus) hasChanges = true;
+          });
+          if (!bulkConfirm || !bulkConfirm.checked || !hasChanges) event.preventDefault();
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

@@ -3,7 +3,9 @@
 {% block content %}
 <div class="section-head">
   <h1>Orders</h1>
+  {% if current_user.has_operator_workflow_access %}
   <a class="btn" href="{{ url_for('orders.create_order') }}">+ New Order</a>
+  {% endif %}
 </div>
 {% if operator_dashboard %}
 <div class="card">
@@ -49,7 +51,7 @@
   </label>
   <div style="display:flex; align-items:flex-end; gap:8px;">
     <button class="btn" type="submit">Apply Filter</button>
-    <a class="btn" href="{{ url_for('orders.list_orders') }}" style="background:#ffffff; color:#222; border:1px solid #cfd6e3;">Reset</a>
+    <a class="btn btn-neutral" href="{{ url_for('orders.list_orders') }}">Reset</a>
   </div>
 </form>
 <div class="table-wrap">
@@ -66,27 +68,17 @@
         <td>{{ order.created_at.strftime('%Y-%m-%d') }}</td>
         <td>{{ creator_map.get(order.id, 'Unknown') }}</td>
         <td>
-          <div style="display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap;">
-            <a href="{{ url_for('orders.order_detail', order_id=order.id) }}">Open</a>
-            <a href="{{ url_for('orders.verify_order', order_id=order.id) }}">Checklist</a>
-            <a href="{{ url_for('orders.cutting_plan', order_id=order.id) }}">Cutting</a>
-            {% if current_user.has_admin_panel_access %}
+          <div style="display:flex; align-items:center; gap:8px; justify-content:center; flex-wrap:wrap;">
+            <a class="btn btn-outline btn-small" href="{{ url_for('orders.order_detail', order_id=order.id) }}">Open</a>
+            <a class="btn btn-outline btn-small" href="{{ url_for('orders.verify_order', order_id=order.id) }}">Checklist</a>
+            <a class="btn btn-outline btn-small" href="{{ url_for('orders.cutting_plan', order_id=order.id) }}">Cutting</a>
+            {% if current_user.can_delete_orders %}
               <form method="post"
                     action="{{ url_for('orders.delete_order', order_id=order.id) }}"
                     style="display:inline-flex;"
                     onsubmit="return confirmDeleteWithPin(this, '{{ order.order_id|e }}');">
                 <input type="hidden" name="delete_pin" value="">
-                <button type="submit"
-                        title="Delete Order"
-                        aria-label="Delete Order"
-                        style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #d43f3a;border-radius:6px;background:#fff;color:#d43f3a;cursor:pointer;padding:0;">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M4 7h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <path d="M7 7l1 12a1 1 0 0 0 1 .92h6a1 1 0 0 0 1-.92L17 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  </svg>
-                </button>
+                <button type="submit" class="btn btn-danger btn-small" title="Delete Order" aria-label="Delete Order">Delete</button>
               </form>
             {% endif %}
           </div>

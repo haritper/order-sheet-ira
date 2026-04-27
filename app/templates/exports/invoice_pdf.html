@@ -1,0 +1,370 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 0; }
+
+    body {
+      margin: 0;
+      /* Original uses a squarish, non-narrow font — plain Arial matches better */
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      font-weight: 400;
+      color: #1a1a1a;
+      background: #ffffff;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 14mm 18mm 14mm 18mm;
+      box-sizing: border-box;
+      background: #ffffff;
+    }
+
+    /* ─── HEADER ─── */
+    .heading {
+      display: table;
+      width: 100%;
+      margin-bottom: 14px;
+    }
+    .heading-left,
+    .heading-right {
+      display: table-cell;
+      vertical-align: top;
+    }
+    /* Logo takes ~40% so heading fits on one line */
+    .heading-left { width: 40%; }
+    .heading-right {
+      width: 60%;
+      text-align: right;
+      /* Original: single line, not too large — ~20px matches */
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      color: #1a1a1a;
+      vertical-align: top;
+      padding-top: 6mm;
+    }
+
+    /* Logo block */
+    .brand-block { display: inline-block; }
+    .brand-logo {
+      display: block;
+      /* Sized to match original — large but not overflowing */
+      width: 44mm;
+      height: auto;
+      /* Force to black — works in Chrome/Edge print and WeasyPrint */
+      filter: brightness(0) saturate(100%);
+      -webkit-filter: brightness(0) saturate(100%);
+    }
+    .brand-sportswear {
+      display: block;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 7.5px;
+      font-weight: 400;
+      letter-spacing: 3.5px;
+      color: #1a1a1a;
+      text-transform: uppercase;
+      margin-top: 5px;
+    }
+
+    /* ─── MAIN ORDER TABLE ─── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .boxed th,
+    .boxed td {
+      border: 1px solid #5a5a5a;
+      padding: 6px 9px;
+      vertical-align: middle;
+      font-size: 12px;
+      /* Original label column: bold. Value column: bold too */
+      font-weight: 700;
+      /* Original does NOT uppercase values — keep as-is from data */
+    }
+
+    /* Label (th) column — original is ~36% wide */
+    .boxed th {
+      width: 36%;
+      text-align: left;
+      text-transform: uppercase;
+      background: #ffffff;
+      white-space: nowrap;
+    }
+
+    .value {
+      width: 64%;
+      text-align: left;
+    }
+
+    /* ─── INLINE PAIR ROWS ─── */
+    .pair-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .pair-table td {
+      border-right: 1px solid #5a5a5a;
+      padding: 6px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .pair-table td:last-child { border-right: none; }
+    .pair-left  { text-align: left; }
+    .pair-mid   { text-align: left; }
+    .pair-right { text-align: right; }
+
+    /* ─── SHIPPING ADDRESS LABEL ─── */
+    /* Original: plain bold text above table, same font size as table */
+    .section-title {
+      margin: 14px 0 4px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.01em;
+      color: #1a1a1a;
+    }
+
+    /* ─── SHIPPING ADDRESS TABLE ─── */
+    .shipping-boxed th,
+    .shipping-boxed td {
+      border: 1px solid #5a5a5a;
+      padding: 6px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+      line-height: 1.25;
+    }
+    .shipping-boxed th {
+      text-align: left;
+      background: #ffffff;
+    }
+
+    /* ─── SHIPPING / WHAT NEXT BARS ─── */
+    /* Original: bordered box, very subtle grey background fill */
+    .bar {
+      border: 1px solid #5a5a5a;
+      background: #f2f2f2;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-top: 14px;
+      color: #1a1a1a;
+    }
+
+    /* ─── SHIPPING COPY ─── */
+    /* Original: bold paragraphs */
+    .copy {
+      margin: 8px 0 0;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.45;
+      color: #1a1a1a;
+    }
+
+    /* ─── WHAT NEXT LIST ─── */
+    .what-next {
+      margin: 8px 0 0 0;
+      padding: 0 0 0 34px;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.5;
+      color: #1a1a1a;
+    }
+    .what-next li {
+      margin-bottom: 4px;
+      padding-left: 2px;
+    }
+    /* "2–3 business days" — bold + underline in original */
+    .what-next strong {
+      font-weight: 700;
+      text-decoration: underline;
+    }
+
+    /* ─── FOOTER ─── */
+    /* "Bulk production will commence..." — plain normal weight in original */
+    .footer {
+      margin-top: 12px;
+      font-size: 12px;
+      font-weight: 400;
+      color: #1a1a1a;
+      line-height: 1.45;
+    }
+
+    /* Ordinal superscripts (TH, ST, ND, RD) */
+    .sup {
+      font-size: 65%;
+      vertical-align: super;
+      line-height: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- ─── HEADER: Logo left, ORDER CONFIRMATION right ─── -->
+    <div class="heading">
+      <div class="heading-left">
+        {% if ira_logo_uri %}
+        <div class="brand-block">
+          <img class="brand-logo" src="{{ ira_logo_uri }}" alt="IRA Sportswear">
+          <span class="brand-sportswear">S P O R T S W E A R</span>
+        </div>
+        {% endif %}
+      </div>
+      <div class="heading-right">ORDER CONFIRMATION</div>
+    </div>
+
+    <!-- ─── ORDER DETAILS TABLE ─── -->
+    <table class="boxed">
+      <colgroup>
+        <col style="width:36%;">
+        <col style="width:64%;">
+      </colgroup>
+      <tr>
+        <th>ENQUIRY ID</th>
+        <td class="value">{{ enquiry_id }}</td>
+      </tr>
+      <tr>
+        <th>ORDER ID</th>
+        <td class="value">{{ invoice_order_id }}</td>
+      </tr>
+      <tr>
+        <th>ORDER DATE</th>
+        <td class="value">{{ order_date.day }}<span class="sup">{{ order_date.suffix }}</span> {{ order_date.month_year }}</td>
+      </tr>
+      <tr>
+        <th>ESTIMATED SHIPMENT DATE</th>
+        <td class="value">
+          {{ shipment_start.day }}<span class="sup">{{ shipment_start.suffix }}</span> {{ shipment_start.month_year }}
+          &ndash;
+          {{ shipment_end.day }}<span class="sup">{{ shipment_end.suffix }}</span> {{ shipment_end.month_year }}
+        </td>
+      </tr>
+      <tr>
+        <th>INVOICE #</th>
+        <td class="value"># {{ invoice_number }}</td>
+      </tr>
+      <tr>
+        <th>AMOUNT ($)</th>
+        <td class="value">${{ amount }}</td>
+      </tr>
+      <tr>
+        <th>PAYMENT RECEIVED ($)</th>
+        <td class="value" style="padding:0;">
+          <table class="pair-table">
+            <colgroup>
+              <col style="width:34%;">
+              <col style="width:33%;">
+              <col style="width:33%;">
+            </colgroup>
+            <tr>
+              <td class="pair-left">${{ payment_received }}</td>
+              <td class="pair-mid">BALANCE ($)</td>
+              <td class="pair-right">${{ balance }}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <th>PAYMENT STATUS</th>
+        <td class="value">{{ payment_status }}</td>
+      </tr>
+      <tr>
+        <th>PAYMENT MODE</th>
+        <td class="value" style="padding:0;">
+          <table class="pair-table">
+            <colgroup>
+              <col style="width:34%;">
+              <col style="width:33%;">
+              <col style="width:33%;">
+            </colgroup>
+            <tr>
+              <td class="pair-left">{{ payment_mode }}</td>
+              <td class="pair-mid">PAID ON</td>
+              <td class="pair-right">
+                {% if paid_on_parts %}
+                  {{ paid_on_parts.day }}<span class="sup">{{ paid_on_parts.suffix }}</span> {{ paid_on_parts.month_year }}
+                {% else %}
+                  {{ paid_on }}
+                {% endif %}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <th>TRANSACTION ID</th>
+        <td class="value">{{ transaction_id }}</td>
+      </tr>
+    </table>
+
+    <!-- ─── SHIPPING ADDRESS ─── -->
+    <!-- Original: plain bold text label, no bordered bar -->
+    <div class="section-title">SHIPPING ADDRESS</div>
+    <table class="boxed shipping-boxed">
+      <colgroup>
+        <col style="width:20%;">
+        <col style="width:36%;">
+        <col style="width:13%;">
+        <col style="width:31%;">
+      </colgroup>
+      <tr>
+        <th>NAME</th>
+        <td>{{ shipping_name }}</td>
+        <th>MOBILE</th>
+        <!-- Blank cell if no mobile — no dash placeholder -->
+        <td>{{ shipping_mobile if shipping_mobile and shipping_mobile != '-' else '' }}</td>
+      </tr>
+      <tr>
+        <th>SHIPPING ADDRESS</th>
+        <td colspan="3">{{ shipping_address }}</td>
+      </tr>
+      <tr>
+        <th>CITY</th>
+        <td>{{ shipping_city }}</td>
+        <th>ZIP CODE</th>
+        <td>{{ shipping_zip_code }}</td>
+      </tr>
+      <tr>
+        <th>STATE</th>
+        <td>{{ shipping_state }}</td>
+        <th>COUNTRY</th>
+        <td>{{ shipping_country }}</td>
+      </tr>
+    </table>
+
+    <!-- ─── SHIPPING ─── -->
+    <!-- Bar has light grey fill matching original -->
+    <div class="bar">SHIPPING</div>
+    {% for paragraph in shipping_copy %}
+      <p class="copy">{{ paragraph }}</p>
+    {% endfor %}
+
+    <!-- ─── WHAT NEXT ─── -->
+    <div class="bar">WHAT NEXT?</div>
+    <ol class="what-next">
+      {% for step in what_next_steps %}
+        <li>{{ step
+          | replace('2-3 business days', '<strong>2&#8211;3 business days</strong>')
+          | replace('2–3 business days', '<strong>2&#8211;3 business days</strong>')
+          | safe }}</li>
+      {% endfor %}
+    </ol>
+
+    <!-- Footer line: normal weight in original -->
+    <p class="footer">{{ invoice_footer }}</p>
+
+  </div>
+</body>
+</html>

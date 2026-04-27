@@ -46,7 +46,7 @@ class Config:
     ADMIN_DEFAULT_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ChangeMe123!")
     OPERATOR_DEFAULT_PASSWORD = os.environ.get("OPERATOR_PASSWORD", "Operator@123")
     INVOICE_RECEIPT_REQUIRED = (
-        os.environ.get("INVOICE_RECEIPT_REQUIRED", "false").strip().lower() in {"1", "true", "yes", "on"}
+        os.environ.get("INVOICE_RECEIPT_REQUIRED", "true").strip().lower() in {"1", "true", "yes", "on"}
     )
 
     PRICING_DATABASE = os.environ.get(
@@ -75,6 +75,44 @@ class Config:
         "PRICING_EMPLOYEE_PASSWORD",
         "ChangeMe123!",
     )
+    WORK_TIMING_ALERT_MODE = os.environ.get("WORK_TIMING_ALERT_MODE", "log")
+    WORK_TIMING_GIRI_CONTACT = os.environ.get("WORK_TIMING_GIRI_CONTACT", "")
+    WORK_TIMING_MD_CONTACT = os.environ.get("WORK_TIMING_MD_CONTACT", "")
+    WORK_TIMING_WEBHOOK_URL = os.environ.get("WORK_TIMING_WEBHOOK_URL", "")
+    WORK_TIMING_WEBHOOK_TOKEN = os.environ.get("WORK_TIMING_WEBHOOK_TOKEN", "")
+    try:
+        WORK_TIMING_WEBHOOK_TIMEOUT_SECONDS = float(
+            os.environ.get("WORK_TIMING_WEBHOOK_TIMEOUT_SECONDS", "15") or "15"
+        )
+    except (TypeError, ValueError):
+        WORK_TIMING_WEBHOOK_TIMEOUT_SECONDS = 15.0
+    CUSTOMER_PLAN_WEBHOOK_ENABLED = (
+        os.environ.get("CUSTOMER_PLAN_WEBHOOK_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+    )
+    CUSTOMER_PLAN_WEBHOOK_URL = os.environ.get("CUSTOMER_PLAN_WEBHOOK_URL", "")
+    CUSTOMER_PLAN_WEBHOOK_TOKEN = os.environ.get("CUSTOMER_PLAN_WEBHOOK_TOKEN", "")
+    try:
+        CUSTOMER_PLAN_WEBHOOK_TIMEOUT_SECONDS = float(
+            os.environ.get("CUSTOMER_PLAN_WEBHOOK_TIMEOUT_SECONDS", "15") or "15"
+        )
+    except (TypeError, ValueError):
+        CUSTOMER_PLAN_WEBHOOK_TIMEOUT_SECONDS = 15.0
+    ASSIGN_MAIL_SMTP_HOST = os.environ.get("ASSIGN_MAIL_SMTP_HOST", "")
+    try:
+        ASSIGN_MAIL_SMTP_PORT = int(os.environ.get("ASSIGN_MAIL_SMTP_PORT", "587") or "587")
+    except (TypeError, ValueError):
+        ASSIGN_MAIL_SMTP_PORT = 587
+    ASSIGN_MAIL_USERNAME = os.environ.get("ASSIGN_MAIL_USERNAME", "")
+    ASSIGN_MAIL_PASSWORD = os.environ.get("ASSIGN_MAIL_PASSWORD", "")
+    ASSIGN_MAIL_USE_TLS = (
+        os.environ.get("ASSIGN_MAIL_USE_TLS", "true").strip().lower() in {"1", "true", "yes", "on"}
+    )
+    ASSIGN_MAIL_USE_SSL = (
+        os.environ.get("ASSIGN_MAIL_USE_SSL", "false").strip().lower() in {"1", "true", "yes", "on"}
+    )
+    ASSIGN_MAIL_FROM = os.environ.get("ASSIGN_MAIL_FROM", ASSIGN_MAIL_USERNAME)
+    ASSIGN_MAIL_CC = os.environ.get("ASSIGN_MAIL_CC", "")
+    ASSIGN_MAIL_REPLY_TO = os.environ.get("ASSIGN_MAIL_REPLY_TO", ASSIGN_MAIL_FROM)
 
 
 class TestConfig(Config):

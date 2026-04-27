@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Delivered Orders{% endblock %}
+{% block content %}
+<section class="wt-page">
+  <section class="card wt-title-strip">
+    <div class="wt-title-left">
+      <img class="wt-inline-logo" src="{{ url_for('static', filename=brand_logo_filename) }}" alt="IRA logo">
+      <h2>Time and Action (T&amp;A)</h2>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-head">
+      <div class="wt-tabs" role="tablist" aria-label="Order sheets">
+        <a class="wt-tab" href="{{ url_for('work_timing.update_page') }}" role="tab" aria-selected="false">Order Status Grid</a>
+        <a class="wt-tab active" href="{{ url_for('work_timing.delivered_page') }}" role="tab" aria-selected="true">Delivered</a>
+      </div>
+    </div>
+    <form method="get" action="{{ url_for('work_timing.delivered_page') }}" class="wt-filter-row">
+      <div class="wt-filter-field">
+        <label for="period">Filter Period</label>
+        <select id="period" name="period">
+          <option value="" {% if not selected_period %}selected{% endif %}>All</option>
+          <option value="last_week" {% if selected_period == "last_week" %}selected{% endif %}>Last Week</option>
+          <option value="last_month" {% if selected_period == "last_month" %}selected{% endif %}>Last Month</option>
+          <option value="custom" {% if selected_period == "custom" %}selected{% endif %}>Custom Date</option>
+        </select>
+      </div>
+      <div class="wt-filter-field js-custom-date-field">
+        <label for="date_from">From</label>
+        <input id="date_from" type="date" name="date_from" value="{{ date_from or '' }}">
+      </div>
+      <div class="wt-filter-field js-custom-date-field">
+        <label for="date_to">To</label>
+        <input id="date_to" type="date" name="date_to" value="{{ date_to or '' }}">
+      </div>
+      <button class="btn btn-small" type="submit">Apply Filter</button>
+    </form>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Customer Name</th>
+            <th>Status</th>
+            <th>Delivered On</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if entries %}
+            {% for entry in entries %}
+            <tr>
+              <td><strong>{{ entry.order_code }}</strong></td>
+              <td>{{ entry.customer_name }}</td>
+              <td><span class="status-pill status-approved">DELIVERED</span></td>
+              <td>{{ entry.updated_at.strftime('%Y-%m-%d %H:%M') if entry.updated_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="4" class="muted">No delivered orders yet.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+<script>
+  (function () {
+    var periodSelect = document.getElementById("period");
+    var customDateFields = document.querySelectorAll(".js-custom-date-field");
+    var fromInput = document.getElementById("date_from");
+    var toInput = document.getElementById("date_to");
+    if (!periodSelect) return;
+
+    function syncCustomDateVisibility() {
+      var isCustom = (periodSelect.value || "") === "custom";
+      customDateFields.forEach(function (field) {
+        field.classList.toggle("is-hidden", !isCustom);
+      });
+      if (fromInput) fromInput.disabled = !isCustom;
+      if (toInput) toInput.disabled = !isCustom;
+    }
+
+    periodSelect.addEventListener("change", syncCustomDateVisibility);
+    syncCustomDateVisibility();
+  })();
+</script>
+{% endblock %}

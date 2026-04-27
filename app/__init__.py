@@ -35,6 +35,9 @@ def create_app(config_object=None):
     from app.exports.routes import exports_bp
     from app.admin.routes import admin_bp
     from app.customer.routes import customer_bp
+    from app.work_timing.routes import work_timing_bp
+    from app.invoice.routes import invoice_bp
+    from app.assign.routes import assign_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(orders_bp)
@@ -42,6 +45,9 @@ def create_app(config_object=None):
     app.register_blueprint(exports_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(customer_bp)
+    app.register_blueprint(work_timing_bp)
+    app.register_blueprint(invoice_bp)
+    app.register_blueprint(assign_bp)
     app.register_blueprint(pricing_bp)
     init_pricing_module(app)
     _seed_default_users(app)
@@ -139,24 +145,37 @@ def _register_cli(app):
         from app.extensions import db
         from app.models import User
 
-        email = os.environ.get("ADMIN_EMAIL", "admin@example.com")
+        username = os.environ.get("ADMIN_USERNAME", "admin")
         password = os.environ.get("ADMIN_PASSWORD", "ChangeMe123!")
         full_name = os.environ.get("ADMIN_NAME", "Admin User")
 
-        if User.query.filter_by(email=email).first():
-            print(f"Admin user already exists: {email}")
+        if User.query.filter_by(email=username).first():
+            print(f"Admin user already exists: {username}")
             return
 
-        user = User(email=email, full_name=full_name, role="admin")
+        user = User(email=username, full_name=full_name, role="admin")
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        print(f"Created admin user: {email}")
+        print(f"Created admin user: {username}")
 
     @app.cli.command("seed-default-users")
     def seed_default_users():
         _seed_default_users(app)
         print("Seeded default admin and operator users.")
+
+    @app.cli.command("work-timing-check")
+    def work_timing_check():
+        from app.work_timing.services import run_work_timing_overdue_check
+
+        summary = run_work_timing_overdue_check()
+        print(
+            "work_timing_check scanned={scanned} giri_sent={giri_sent} md_sent={md_sent}".format(
+                scanned=int(summary.get("scanned", 0)),
+                giri_sent=int(summary.get("giri_sent", 0)),
+                md_sent=int(summary.get("md_sent", 0)),
+            )
+        )
 
 
 def _register_template_context(app):
@@ -180,20 +199,41 @@ def _seed_default_users(app):
         if not inspector.has_table("users"):
             return
 
+        _normalize_existing_usernames()
         operator_password = app.config["OPERATOR_DEFAULT_PASSWORD"]
         admin_password = app.config["ADMIN_DEFAULT_PASSWORD"]
         defaults = [
-            ("giri@gmail.com", "Giri", "operator", admin_password),
-            ("subash@gmail.com", "Subash", "operator", operator_password),
-            ("sudharshan@gmail.com", "Sudharshan", "operator", operator_password),
-            ("admin@example.com", "Admin User", "admin", admin_password),
+            ("giri", "Giri", "operator", admin_password),
+            ("subash", "Subash", "operator", operator_password),
+            ("sudharshan", "Sudharshan", "operator", operator_password),
         ]
 
         changed = False
-        for email, full_name, role, password in defaults:
-            user = User.query.filter_by(email=email).first()
+        has_any_admin = User.query.filter_by(role="admin").first() is not None
+        admin_user = User.query.filter_by(email="admin").first()
+        if admin_user is None and not has_any_admin:
+            admin_user = User(email="admin", full_name="Admin User", role="admin")
+            admin_user.set_password(admin_password)
+            db.session.add(admin_user)
+            changed = True
+        elif admin_user is not None:
+            admin_updated = False
+            if admin_user.full_name != "Admin User":
+                admin_user.full_name = "Admin User"
+                admin_updated = True
+            if str(admin_user.role or "").strip().lower() != "admin":
+                admin_user.role = "admin"
+                admin_updated = True
+            if not admin_user.check_password(admin_password):
+                admin_user.set_password(admin_password)
+                admin_updated = True
+            if admin_updated:
+                changed = True
+
+        for username, full_name, role, password in defaults:
+            user = User.query.filter_by(email=username).first()
             if user is None:
-                user = User(email=email, full_name=full_name, role=role)
+                user = User(email=username, full_name=full_name, role=role)
                 user.set_password(password)
                 db.session.add(user)
                 changed = True
@@ -203,9 +243,6 @@ def _seed_default_users(app):
             if user.full_name != full_name:
                 user.full_name = full_name
                 needs_update = True
-            if user.role != role:
-                user.role = role
-                needs_update = True
             if not user.check_password(password):
                 user.set_password(password)
                 needs_update = True
@@ -214,3 +251,34 @@ def _seed_default_users(app):
 
         if changed:
             db.session.commit()
+
+
+def _normalize_existing_usernames():
+    users = User.query.order_by(User.id.asc()).all()
+    if not users:
+        return
+
+    occupied = set()
+    changed = False
+    for user in users:
+        raw = str(user.email or "").strip().lower()
+        if "@" in raw:
+            base = raw.split("@", 1)[0].strip()
+        else:
+            base = raw
+        if not base:
+            base = f"user{int(user.id)}"
+
+        candidate = base
+        suffix = 2
+        while candidate in occupied:
+            candidate = f"{base}{suffix}"
+            suffix += 1
+
+        occupied.add(candidate)
+        if candidate != raw:
+            user.email = candidate
+            changed = True
+
+    if changed:
+        db.session.commit()

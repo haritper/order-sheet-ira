@@ -16,9 +16,6 @@ def roles_required(*roles):
             user_role = str(getattr(current_user, "role", "") or "").strip().lower()
             requested = {str(v or "").strip().lower() for v in roles}
             if user_role not in requested:
-                # Special access: allow Giri to access admin pages without changing operator role.
-                if "admin" in requested and bool(getattr(current_user, "has_admin_panel_access", False)):
-                    return fn(*args, **kwargs)
                 abort(403)
             return fn(*args, **kwargs)
 

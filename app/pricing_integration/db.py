@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -105,8 +106,10 @@ def get_db() -> sqlite3.Connection:
     if "pricing_db" not in g:
         database_path = Path(current_app.config["PRICING_DATABASE"])
         database_path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(database_path)
+        connection = sqlite3.connect(database_path, timeout=30)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout = 30000")
+        connection.execute("PRAGMA journal_mode = WAL")
         connection.execute("PRAGMA foreign_keys = ON")
         g.pricing_db = connection
     return g.pricing_db
@@ -129,78 +132,87 @@ def init_db() -> None:
 
 def seed_users() -> None:
     db = get_db()
-    db.executemany(
-        """
-        INSERT OR IGNORE INTO users (username, password_hash, role)
-        VALUES (?, ?, ?)
-        """,
-        [
-            (
-                "admin",
-                generate_password_hash(
-                    current_app.config["PRICING_OWNER_DEFAULT_PASSWORD"],
-                    method="pbkdf2:sha256",
+    manager_password = current_app.config["PRICING_EMPLOYEE_DEFAULT_PASSWORD"]
+    for attempt in range(4):
+        try:
+            db.executemany(
+                """
+                INSERT OR IGNORE INTO users (username, password_hash, role)
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (
+                        "admin",
+                        generate_password_hash(
+                            current_app.config["PRICING_OWNER_DEFAULT_PASSWORD"],
+                            method="pbkdf2:sha256",
+                        ),
+                        "owner",
+                    ),
+                    (
+                        "manager",
+                        generate_password_hash(
+                            manager_password,
+                            method="pbkdf2:sha256",
+                        ),
+                        "employee",
+                    ),
+                ],
+            )
+            db.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, role = 'owner'
+                WHERE username = 'admin'
+                """,
+                (
+                    generate_password_hash(
+                        current_app.config["PRICING_OWNER_DEFAULT_PASSWORD"],
+                        method="pbkdf2:sha256",
+                    ),
                 ),
-                "owner",
-            ),
-            (
-                "giri",
-                generate_password_hash(
-                    current_app.config["PRICING_EMPLOYEE_DEFAULT_PASSWORD"],
-                    method="pbkdf2:sha256",
+            )
+            db.execute(
+                """
+                UPDATE users
+                SET password_hash = ?, role = 'employee'
+                WHERE username = 'manager'
+                """,
+                (
+                    generate_password_hash(
+                        manager_password,
+                        method="pbkdf2:sha256",
+                    ),
                 ),
-                "employee",
-            ),
-        ],
-    )
-    db.execute(
-        """
-        UPDATE users
-        SET password_hash = ?, role = 'owner'
-        WHERE username = 'admin'
-        """,
-        (
-            generate_password_hash(
-                current_app.config["PRICING_OWNER_DEFAULT_PASSWORD"],
-                method="pbkdf2:sha256",
-            ),
-        ),
-    )
-    db.execute(
-        """
-        UPDATE users
-        SET password_hash = ?, role = 'employee'
-        WHERE username = 'giri'
-        """,
-        (
-            generate_password_hash(
-                current_app.config["PRICING_EMPLOYEE_DEFAULT_PASSWORD"],
-                method="pbkdf2:sha256",
-            ),
-        ),
-    )
-    giri_row = db.execute(
-        "SELECT id FROM users WHERE username = 'giri' LIMIT 1"
-    ).fetchone()
-    admin_row = db.execute(
-        "SELECT id FROM users WHERE username = 'admin' LIMIT 1"
-    ).fetchone()
-    if giri_row and admin_row:
-        db.execute(
-            """
-            UPDATE orders
-            SET created_by_user_id = ?
-            WHERE created_by_user_id NOT IN (?, ?)
-            """,
-            (giri_row["id"], giri_row["id"], admin_row["id"]),
-        )
-        db.execute(
-            """
-            DELETE FROM users
-            WHERE username NOT IN ('giri', 'admin')
-            """
-        )
-    db.commit()
+            )
+            manager_row = db.execute(
+                "SELECT id FROM users WHERE username = 'manager' LIMIT 1"
+            ).fetchone()
+            admin_row = db.execute(
+                "SELECT id FROM users WHERE username = 'admin' LIMIT 1"
+            ).fetchone()
+            if manager_row and admin_row:
+                db.execute(
+                    """
+                    UPDATE orders
+                    SET created_by_user_id = ?
+                    WHERE created_by_user_id NOT IN (?, ?)
+                    """,
+                    (manager_row["id"], manager_row["id"], admin_row["id"]),
+                )
+                db.execute(
+                    """
+                    DELETE FROM users
+                    WHERE username NOT IN ('manager', 'admin')
+                    """
+                )
+            db.commit()
+            return
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt == 3:
+                raise
+            db.rollback()
+            time.sleep(0.2 * (attempt + 1))
 
 
 def seed_shipping_profiles() -> None:
